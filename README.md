@@ -136,6 +136,12 @@ docker build -f wasm/Dockerfile -t pvz-portable .
 docker run --rm -p 8080:80 pvz-portable
 ```
 
+Optionally mount your resource directory at `/usr/share/nginx/html/resource` to use **Load and Start Game**:
+
+```bash
+docker run --rm -p 8080:80 -v /path/to/resource:/usr/share/nginx/html/resource:ro pvz-portable
+```
+
 Then open `http://localhost:8080/` and import your legally purchased game resources in the browser.
 
 ## Game Version Compatibility

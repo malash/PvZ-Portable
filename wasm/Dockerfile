@@ -31,4 +31,6 @@ COPY --from=builder \
     /src/build-wasm/pvz-portable.wasm \
     /usr/share/nginx/html/
 
+VOLUME ["/usr/share/nginx/html/resource"]
+
 EXPOSE 80
