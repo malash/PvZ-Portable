@@ -127,6 +127,17 @@ The app's Documents folder is exposed via iTunes/Finder file sharing and the iOS
 
 You can also [download the WASM build](https://github.com/wszqkzqk/PvZ-Portable/releases) and self-host it. Note that the HTML file must be served over HTTP (e.g. `python3 -m http.server`) — opening it directly as a local file will not work due to browser security restrictions.
 
+#### Docker
+
+You can build and serve the WASM version with Docker:
+
+```bash
+docker build -f wasm/Dockerfile -t pvz-portable .
+docker run --rm -p 8080:80 pvz-portable
+```
+
+Then open `http://localhost:8080/` and import your legally purchased game resources in the browser.
+
 ## Game Version Compatibility
 
 This project is designed and tested against Plants vs. Zombies **GOTY Edition 1.2.0.1073** EN (the standalone PopCap release). **Non-English GOTY editions** (1.2.0.1093 DE/ES/FR/IT or 1.1.0.1056 ZH based on 1.2.0.1073) and the **Steam GOTY Edition 1.2.0.1096** are also fully playable — all game mechanics work correctly. The only differences are minor cosmetic UI text issues caused by renamed string keys across versions, and these can be **easily fixed** by the user via a custom `properties/default.xml` (see below).
