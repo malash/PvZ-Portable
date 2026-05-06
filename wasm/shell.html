@@ -150,7 +150,7 @@ canvas#canvas {
     font-size: 16px;
 }
 #save-toolbar {
-    position: absolute; top: 8px; right: 8px; display: flex; flex-direction: column; gap: 6px; z-index: 10;
+    position: absolute; top: 8px; right: calc(8px + env(safe-area-inset-right, 0)); display: flex; flex-direction: column; gap: 6px; z-index: 10;
     align-items: flex-end; max-width: calc(100vw - 16px);
 }
 #save-toolbar button {
@@ -160,6 +160,9 @@ canvas#canvas {
 }
 #save-toolbar button:hover { background: rgba(78,204,163,0.2); }
 #save-toolbar button:disabled { opacity: 0.4; cursor: default; }
+@media (hover: none), (pointer: coarse) {
+    #save-toolbar button .label { display: none; }
+}
 
 @media (max-height: 760px), (max-width: 640px) {
     body.upload-mode { justify-content: flex-start; }
@@ -228,8 +231,8 @@ canvas#canvas {
 
 <div id="canvas-container">
     <div id="save-toolbar">
-        <button id="fullscreen-btn" title="Toggle fullscreen">🖥️ Fullscreen</button>
-        <button id="save-export-btn" title="Export saves as ZIP">💾 Export Saves</button>
+        <button id="fullscreen-btn" title="Toggle fullscreen">🖥️ <span class="label">Fullscreen</span></button>
+        <button id="save-export-btn" title="Export saves as ZIP">💾 <span class="label">Export Saves</span></button>
     </div>
     <canvas id="canvas" width="800" height="600" tabindex="0"></canvas>
 </div>
@@ -670,6 +673,7 @@ function collectSaveFiles(dir) {
 async function exportSaves() {
     const btn = document.getElementById('save-export-btn');
     btn.disabled = true;
+    const oldHTML = btn.innerHTML;
     btn.textContent = '⏳ Exporting…';
     try {
         await ensureSaveFsReady();
@@ -694,7 +698,7 @@ async function exportSaves() {
         alert('Export failed: ' + e.message);
     } finally {
         btn.disabled = false;
-        btn.textContent = '💾 Export Saves';
+        btn.innerHTML = oldHTML;
     }
 }
 
