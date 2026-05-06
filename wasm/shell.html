@@ -150,8 +150,8 @@ canvas#canvas {
     font-size: 16px;
 }
 #save-toolbar {
-    position: absolute; top: 8px; right: 8px; display: flex; gap: 6px; z-index: 10;
-    flex-wrap: wrap; justify-content: flex-end; max-width: calc(100vw - 16px);
+    position: absolute; top: 8px; right: 8px; display: flex; flex-direction: column; gap: 6px; z-index: 10;
+    align-items: flex-end; max-width: calc(100vw - 16px);
 }
 #save-toolbar button {
     background: rgba(30,30,50,0.75); color: #4ecca3; border: 1px solid #4ecca3;
@@ -228,6 +228,7 @@ canvas#canvas {
 
 <div id="canvas-container">
     <div id="save-toolbar">
+        <button id="fullscreen-btn" title="Toggle fullscreen">🖥️ Fullscreen</button>
         <button id="save-export-btn" title="Export saves as ZIP">💾 Export Saves</button>
     </div>
     <canvas id="canvas" width="800" height="600" tabindex="0"></canvas>
@@ -296,6 +297,7 @@ const uploadSaveImportDirInput = document.getElementById('upload-save-import-dir
 const reselectLink = document.getElementById('reselect-link');
 
 let runtimeReloadScheduled = false;
+let canvasFullscreen = false;
 
 dropZone.addEventListener('dragover',  e => { e.preventDefault(); dropZone.classList.add('dragover'); });
 dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
@@ -510,7 +512,21 @@ function resizeCanvas() {
     canvas.style.height = Math.floor(canvas.height * scale) + 'px';
 }
 
-window.addEventListener('fullscreenchange', resizeCanvas);
+window.addEventListener('fullscreenchange', () => {
+    canvasFullscreen = !canvasFullscreen;
+    resizeCanvas();
+});
+
+function toggleFullscreen() {
+    if (canvasFullscreen) {
+        const exitFullscreen = document.exitFullscreen || document.webkitExitFullscreen;
+        if (exitFullscreen) exitFullscreen.call(document).catch(function() {});
+    } else {
+        const target = document.documentElement;
+        const requestFullscreen = target.requestFullscreen || target.webkitRequestFullscreen;
+        if (requestFullscreen) requestFullscreen.call(target).catch(function() {});
+    }
+}
 
 function canSyncSaves() {
     return savesMounted && Module.FS && typeof Module.FS.syncfs === 'function';
@@ -788,6 +804,7 @@ async function clearSaves(btn) {
     }
 }
 
+document.getElementById('fullscreen-btn').addEventListener('click', toggleFullscreen);
 document.getElementById('save-export-btn').addEventListener('click', exportSaves);
 uploadSaveImportBtn.addEventListener('click', () => {
     uploadSaveImportInput.click();
@@ -833,8 +850,9 @@ window.onGameExit = function() {
         clearInterval(saveSyncIntervalId);
         saveSyncIntervalId = null;
     }
-    if (document.fullscreenElement) {
-        document.exitFullscreen().catch(function() {});
+    if (canvasFullscreen) {
+        const exitFullscreen = document.exitFullscreen || document.webkitExitFullscreen;
+        if (exitFullscreen) exitFullscreen.call(document).catch(function() {});
     }
     document.getElementById('canvas-container').style.display = 'none';
     document.getElementById('upload-screen').style.display = '';
