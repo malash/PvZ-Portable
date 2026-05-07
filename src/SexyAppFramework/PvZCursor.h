@@ -6,31 +6,59 @@
 
 #include "SexyAppBase.h"
 
-EM_JS(void, PvZEnsureCanvasBrowserCursor, (), {
-	if (Module.pvzCanvasCursorReady) return;
+EM_JS(int, PvZApplyBrowserCursorKind, (int theCursorKind), {
+	var POINTER = 0;
+	var HAND = 1;
+	var cursorKind = -1;
+	if (theCursorKind === POINTER) {
+		cursorKind = POINTER;
+	} else if (theCursorKind === HAND) {
+		cursorKind = HAND;
+	} else {
+		if (Module.pvzCanvasCursor) Module.pvzCanvasCursor.kind = -1;
+		return 0;
+	}
+
+	var state = Module.pvzCanvasCursor;
+	if (!state || !state.sources) {
+		state = Object.assign(state || {}, {
+			kind: -1,
+			style: state ? state.style : null,
+			scaledCanvas: null,
+			sources: [
+				{
+					dataUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAqklEQVR42u3XQQrAIAwEQP//Kn9WKSiIRBM12e2hgqeCTqOta3pqS6xWJ+chGoCGaICcMwfRAyjLMQLgCAkARcwAMMQKAEFogHCEBRCKsALCEDuAEMQuwB1xAnBFnALcEDcAF4QV8D6f9SvEDCCdDVo/QkiA9lbSCWlYkjvAUFLsj6ifHJYTVpEMUoVVKIVUQRs0vAra7qVnRthe+HRy/qsgfbLUu6Tnlb4AgaQqovkXqhYAAAAASUVORK5CYII=',
+					width: 32,
+					height: 32,
+					hotX: 1,
+					hotY: 4
+				},
+				{
+					dataUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAaklEQVR42u3VywrAIAxE0fz/T+tGQaNihOgYmAtu2+OjVoQxxgKVysC8vIZCEPAd4DmkAyAwS8AEgwN4nhE9IzPACzEs7a5rAP1wS27bgAZIe7CggNO8P8dYgFuXEQFivYye/JBgAOOIVQaps8BcUFPTsgAAAABJRU5ErkJggg==',
+					width: 32,
+					height: 32,
+					hotX: 10,
+					hotY: 10
+				}
+			]
+		});
+		Module.pvzCanvasCursor = state;
+	}
 
 	var getCanvas = function() {
-		return Module.canvas || document.getElementById('canvas');
+		return Module.canvas;
 	};
 
-	Module.pvzCursorSources = [
-		{
-			dataUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAqklEQVR42u3XQQrAIAwEQP//Kn9WKSiIRBM12e2hgqeCTqOta3pqS6xWJ+chGoCGaICcMwfRAyjLMQLgCAkARcwAMMQKAEFogHCEBRCKsALCEDuAEMQuwB1xAnBFnALcEDcAF4QV8D6f9SvEDCCdDVo/QkiA9lbSCWlYkjvAUFLsj6ifHJYTVpEMUoVVKIVUQRs0vAra7qVnRthe+HRy/qsgfbLUu6Tnlb4AgaQqovkXqhYAAAAASUVORK5CYII=',
-			width: 32,
-			height: 32,
-			hotX: 1,
-			hotY: 4
-		},
-		{
-			dataUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAaklEQVR42u3VywrAIAxE0fz/T+tGQaNihOgYmAtu2+OjVoQxxgKVysC8vIZCEPAd4DmkAyAwS8AEgwN4nhE9IzPACzEs7a5rAP1wS27bgAZIe7CggNO8P8dYgFuXEQFivYye/JBgAOOIVQaps8BcUFPTsgAAAABJRU5ErkJggg==',
-			width: 32,
-			height: 32,
-			hotX: 10,
-			hotY: 10
-		}
-	];
+	var setCursorStyle = function(cursorStyle) {
+		var canvas = getCanvas();
+		if (!canvas) return;
+		if (state.style === cursorStyle && canvas.style.cursor === cursorStyle) return;
 
-	Module.pvzGetCanvasCursorScalePercent = function() {
+		canvas.style.cursor = cursorStyle;
+		state.style = cursorStyle;
+	};
+
+	var getScalePercent = function() {
 		var canvas = getCanvas();
 		if (!canvas) return 100;
 
@@ -40,45 +68,31 @@ EM_JS(void, PvZEnsureCanvasBrowserCursor, (), {
 		return Math.max(100, Math.round(Math.min(scaleX, scaleY) * 100));
 	};
 
-	Module.pvzSetCanvasCursorStyle = function(cursorStyle) {
-		var canvas = getCanvas();
-		if (!canvas) return;
-		if (Module.pvzCanvasCursorStyle === cursorStyle && canvas.style.cursor === cursorStyle) return;
-
-		canvas.style.cursor = cursorStyle;
-		Module.pvzCanvasCursorStyle = cursorStyle;
-	};
-
-	Module.pvzLoadCanvasCursorSource = function(cursorKind, source) {
-		if (source.image) return source.loaded;
-
-		var image = new Image();
-		image.onload = function() {
-			source.loaded = true;
-			source.cursorStyle = null;
-			if (Module.pvzCanvasCursorKind === cursorKind) {
-				Module.pvzApplyCanvasCursorKind(cursorKind);
-			}
-		};
-		image.src = source.dataUrl;
-		source.image = image;
-		source.loaded = image.complete && image.naturalWidth > 0;
-		return source.loaded;
-	};
-
-	Module.pvzApplyCanvasCursorKind = function(cursorKind) {
-		var source = Module.pvzCursorSources && Module.pvzCursorSources[cursorKind];
+	var applyCursor = function(kind) {
+		var source = state.sources[kind];
 		if (!source) return false;
 
-		Module.pvzCanvasCursorKind = cursorKind;
-		var scalePercent = Module.pvzGetCanvasCursorScalePercent();
+		state.kind = kind;
+		var scalePercent = getScalePercent();
 		if (source.cursorStyle && source.scalePercent === scalePercent) {
-			Module.pvzSetCanvasCursorStyle(source.cursorStyle);
+			setCursorStyle(source.cursorStyle);
 			return true;
 		}
 
-		if (!Module.pvzLoadCanvasCursorSource(cursorKind, source)) {
-			Module.pvzSetCanvasCursorStyle('url("' + source.dataUrl + '") ' + source.hotX + ' ' + source.hotY + ', auto');
+		if (!source.image) {
+			var image = new Image();
+			image.onload = function() {
+				source.loaded = true;
+				source.cursorStyle = null;
+				if (state.kind === kind) applyCursor(kind);
+			};
+			image.src = source.dataUrl;
+			source.image = image;
+			source.loaded = image.complete && image.naturalWidth > 0;
+		}
+
+		if (!source.loaded) {
+			setCursorStyle('url("' + source.dataUrl + '") ' + source.hotX + ' ' + source.hotY + ', auto');
 			return true;
 		}
 
@@ -87,63 +101,66 @@ EM_JS(void, PvZEnsureCanvasBrowserCursor, (), {
 		var hotX = Math.max(0, Math.min(width - 1, Math.round(source.hotX * scalePercent / 100)));
 		var hotY = Math.max(0, Math.min(height - 1, Math.round(source.hotY * scalePercent / 100)));
 
-		var scaled = Module.pvzCursorScaledCanvas;
-		if (!scaled) {
-			scaled = document.createElement('canvas');
-			Module.pvzCursorScaledCanvas = scaled;
+		if (!state.scaledCanvas) {
+			state.scaledCanvas = document.createElement('canvas');
 		}
 
-		scaled.width = width;
-		scaled.height = height;
-		var ctx = scaled.getContext('2d');
+		state.scaledCanvas.width = width;
+		state.scaledCanvas.height = height;
+		var ctx = state.scaledCanvas.getContext('2d');
 		ctx.imageSmoothingEnabled = false;
 		ctx.clearRect(0, 0, width, height);
 		ctx.drawImage(source.image, 0, 0, width, height);
 
 		source.scalePercent = scalePercent;
-		source.cursorStyle = 'url("' + scaled.toDataURL('image/png') + '") ' + hotX + ' ' + hotY + ', auto';
-		Module.pvzSetCanvasCursorStyle(source.cursorStyle);
+		source.cursorStyle = 'url("' + state.scaledCanvas.toDataURL('image/png') + '") ' + hotX + ' ' + hotY + ', auto';
+		setCursorStyle(source.cursorStyle);
 		return true;
 	};
 
-	Module.pvzCanvasCursorReady = true;
+	return applyCursor(cursorKind) ? 1 : 0;
 });
 
-EM_JS(void, PvZClearCanvasBrowserCursorKind, (), {
-	Module.pvzCanvasCursorKind = -1;
-});
+EM_JS(void, PvZHideBrowserCursor, (), {
+	var canvas = Module.canvas;
+	if (!Module.pvzCanvasCursor) {
+		Module.pvzCanvasCursor = { kind: -1, style: null };
+	} else {
+		Module.pvzCanvasCursor.kind = -1;
+	}
 
-EM_JS(void, PvZHideCanvasBrowserCursor, (), {
-	Module.pvzCanvasCursorKind = -1;
-	Module.pvzSetCanvasCursorStyle('none');
-});
-
-EM_JS(int, PvZSetCanvasBrowserCursorKind, (int theKind), {
-	return Module.pvzApplyCanvasCursorKind(theKind) ? 1 : 0;
+	if (canvas && (Module.pvzCanvasCursor.style !== 'none' || canvas.style.cursor !== 'none')) {
+		canvas.style.cursor = 'none';
+		Module.pvzCanvasCursor.style = 'none';
+	}
 });
 
 namespace Sexy
 {
 
+enum
+{
+	PVZ_BROWSER_CURSOR_POINTER,
+	PVZ_BROWSER_CURSOR_HAND
+};
+
 static inline bool ApplyPvZBrowserCursor(int theCursorNum)
 {
-	PvZEnsureCanvasBrowserCursor();
 	switch (theCursorNum)
 	{
 	case CURSOR_POINTER:
-		return PvZSetCanvasBrowserCursorKind(0) != 0;
+		return PvZApplyBrowserCursorKind(PVZ_BROWSER_CURSOR_POINTER) != 0;
 	case CURSOR_HAND:
-		return PvZSetCanvasBrowserCursorKind(1) != 0;
+		return PvZApplyBrowserCursorKind(PVZ_BROWSER_CURSOR_HAND) != 0;
 	default:
-		PvZClearCanvasBrowserCursorKind();
+		PvZApplyBrowserCursorKind(-1);
 		return false;
 	}
 }
 
 static inline void HidePvZBrowserCursor()
 {
-	PvZEnsureCanvasBrowserCursor();
-	PvZHideCanvasBrowserCursor();
+	PvZHideBrowserCursor();
 }
 
 } // namespace Sexy
