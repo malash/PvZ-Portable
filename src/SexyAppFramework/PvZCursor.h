@@ -285,32 +285,16 @@ static inline bool PvZDecodeCursorDib(const unsigned char* theDib, size_t theDib
 	return true;
 }
 
-static inline bool PvZDecodeCursor(const unsigned char* theData, size_t theDataSize, int theTargetWidth, PvZCursorBitmap& theBitmap)
+static inline bool PvZDecodeCursor(const unsigned char* theData, size_t theDataSize, PvZCursorBitmap& theBitmap)
 {
 	if (theDataSize < 22 || PvZReadLE16(theData) != 0 || PvZReadLE16(theData + 2) != 2)
 		return false;
 
 	const int aCount = PvZReadLE16(theData + 4);
-	if (aCount < 1 || theDataSize < 6 + static_cast<size_t>(aCount) * 16)
+	if (aCount != 1 || theDataSize < 22)
 		return false;
 
-	int aBestIndex = 0;
-	int aBestWidth = 0;
-	int aBestScore = 0x7FFFFFFF;
-	for (int i = 0; i < aCount; i++)
-	{
-		const unsigned char* anEntry = theData + 6 + static_cast<size_t>(i) * 16;
-		const int aWidth = anEntry[0] == 0 ? 256 : anEntry[0];
-		const int aScore = std::abs(aWidth - theTargetWidth);
-		if (aScore < aBestScore || (aScore == aBestScore && aWidth > aBestWidth))
-		{
-			aBestIndex = i;
-			aBestWidth = aWidth;
-			aBestScore = aScore;
-		}
-	}
-
-	const unsigned char* anEntry = theData + 6 + static_cast<size_t>(aBestIndex) * 16;
+	const unsigned char* anEntry = theData + 6;
 	const uint32_t anImageSize = PvZReadLE32(anEntry + 8);
 	const uint32_t anImageOffset = PvZReadLE32(anEntry + 12);
 	if (anImageOffset >= theDataSize || anImageSize > theDataSize - anImageOffset)
@@ -353,7 +337,7 @@ static inline bool PvZBuildCursorBitmap(PvZCursorKind theKind, int theScalePerce
 {
 	PvZCursorBitmap aSource;
 	const PvZCursorResource aResource = GetPvZCursorResource(theKind);
-	if (aResource.mData == nullptr || !PvZDecodeCursor(aResource.mData, aResource.mSize, 32, aSource))
+	if (aResource.mData == nullptr || !PvZDecodeCursor(aResource.mData, aResource.mSize, aSource))
 		return false;
 
 	return PvZScaleCursorBitmap(aSource, theScalePercent, theBitmap);
