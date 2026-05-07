@@ -6,7 +6,13 @@
 
 #include "SexyAppBase.h"
 
-EM_JS(void, PvZApplyBrowserCursorKind, (int theCursorKind), {
+EM_JS(void, PvZSetBrowserCursorKind, (int theCursorKind), {
+	if (theCursorKind < 0) {
+		Module.pvzCanvasCursorKind = -1;
+		if (Module.canvas) Module.canvas.style.cursor = 'none';
+		return;
+	}
+
 	const CURSOR_SOURCES = [
 		{
 			dataUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAqklEQVR42u3XQQrAIAwEQP//Kn9WKSiIRBM12e2hgqeCTqOta3pqS6xWJ+chGoCGaICcMwfRAyjLMQLgCAkARcwAMMQKAEFogHCEBRCKsALCEDuAEMQuwB1xAnBFnALcEDcAF4QV8D6f9SvEDCCdDVo/QkiA9lbSCWlYkjvAUFLsj6ifHJYTVpEMUoVVKIVUQRs0vAra7qVnRthe+HRy/qsgfbLUu6Tnlb4AgaQqovkXqhYAAAAASUVORK5CYII=',
@@ -93,16 +99,12 @@ EM_JS(void, PvZApplyBrowserCursorKind, (int theCursorKind), {
 	applyCursor(theCursorKind);
 });
 
-EM_JS(void, PvZHideBrowserCursor, (), {
-	Module.pvzCanvasCursorKind = -1;
-	if (Module.canvas) Module.canvas.style.cursor = 'none';
-});
-
 namespace Sexy
 {
 
 enum
 {
+	PVZ_BROWSER_CURSOR_NONE = -1,
 	PVZ_BROWSER_CURSOR_POINTER,
 	PVZ_BROWSER_CURSOR_HAND
 };
@@ -112,20 +114,20 @@ static inline bool ApplyPvZBrowserCursor(int theCursorNum)
 	switch (theCursorNum)
 	{
 	case CURSOR_POINTER:
-		PvZApplyBrowserCursorKind(PVZ_BROWSER_CURSOR_POINTER);
+		PvZSetBrowserCursorKind(PVZ_BROWSER_CURSOR_POINTER);
 		return true;
 	case CURSOR_HAND:
-		PvZApplyBrowserCursorKind(PVZ_BROWSER_CURSOR_HAND);
+		PvZSetBrowserCursorKind(PVZ_BROWSER_CURSOR_HAND);
 		return true;
 	default:
-		PvZHideBrowserCursor();
+		PvZSetBrowserCursorKind(PVZ_BROWSER_CURSOR_NONE);
 		return false;
 	}
 }
 
 static inline void HidePvZBrowserCursor()
 {
-	PvZHideBrowserCursor();
+	PvZSetBrowserCursorKind(PVZ_BROWSER_CURSOR_NONE);
 }
 
 } // namespace Sexy
