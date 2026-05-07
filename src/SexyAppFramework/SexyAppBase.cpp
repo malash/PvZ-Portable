@@ -2441,7 +2441,8 @@ void SexyAppBase::EnforceCursor()
 		return;
 	}
 
-	ClearPvZBrowserCursorClass();
+	ApplyPvZBrowserSystemCursor(aCursorNum);
+	return;
 #endif
 
 	SDL_Cursor* aCursor = nullptr;
