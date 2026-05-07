@@ -77,7 +77,9 @@
 #include "sound/DummyMusicInterface.h"
 #include "misc/memmgr.h"
 #include "misc/RegEmu.h"
+#ifdef __EMSCRIPTEN__
 #include "PvZCursor.h"
+#endif
 
 using namespace Sexy;
 
@@ -2436,9 +2438,6 @@ void SexyAppBase::EnforceCursor()
 	if (aCursor == nullptr)
 	{
 		SDL_Cursor*& aCachedCursor = mSysCursors[aCursorNum];
-#ifndef __EMSCRIPTEN__
-		aCursor = GetPvZColorCursor(this, aCursorNum, aCachedCursor);
-#endif
 		if (aCursor == nullptr)
 		{
 			if (aCachedCursor == nullptr)
