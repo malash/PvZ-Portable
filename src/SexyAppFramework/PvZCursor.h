@@ -39,7 +39,7 @@ EM_JS(void, PvZEnsureCanvasBrowserCursorEvents, (), {
 		canvas.style.cursor = cursorStyle;
 	};
 
-	var restoreSoon = function() {
+	Module.pvzScheduleCanvasCursorRestore = function() {
 		if (Module.pvzCanvasCursorRestorePending) return;
 		Module.pvzCanvasCursorRestorePending = true;
 		setTimeout(function() {
@@ -48,10 +48,10 @@ EM_JS(void, PvZEnsureCanvasBrowserCursorEvents, (), {
 		}, 0);
 	};
 
-	canvas.addEventListener('mouseenter', restoreSoon);
+	canvas.addEventListener('mouseenter', Module.pvzScheduleCanvasCursorRestore);
 	canvas.addEventListener('mousemove', function() {
 		if (Module.pvzCanvasCursorStyle && canvas.style.cursor !== Module.pvzCanvasCursorStyle) {
-			restoreSoon();
+			Module.pvzScheduleCanvasCursorRestore();
 		}
 	});
 
@@ -67,6 +67,7 @@ EM_JS(void, PvZSetCanvasBrowserCursorStyle, (const char* theCursorStyle), {
 
 	canvas.style.cursor = cursorStyle;
 	Module.pvzCanvasCursorStyle = cursorStyle;
+	Module.pvzScheduleCanvasCursorRestore();
 });
 
 EM_JS(void, PvZSetCanvasBrowserCursorKind, (int theKind), {
@@ -81,6 +82,7 @@ EM_JS(void, PvZSetCanvasBrowserCursorKind, (int theKind), {
 
 	canvas.style.cursor = cursorStyle;
 	Module.pvzCanvasCursorStyle = cursorStyle;
+	Module.pvzScheduleCanvasCursorRestore();
 });
 
 EM_JS(void, PvZSetCanvasBrowserCursorPixels, (int theKind, const uint32_t* thePixels, int theWidth, int theHeight, int theHotX, int theHotY), {
@@ -117,6 +119,7 @@ EM_JS(void, PvZSetCanvasBrowserCursorPixels, (int theKind, const uint32_t* thePi
 
 	canvas.style.cursor = cursorStyle;
 	Module.pvzCanvasCursorStyle = cursorStyle;
+	Module.pvzScheduleCanvasCursorRestore();
 });
 #endif
 
