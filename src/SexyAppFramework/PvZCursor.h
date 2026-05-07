@@ -2,13 +2,9 @@
 
 #ifdef __EMSCRIPTEN__
 
-#include <cstdint>
-
 #include <emscripten.h>
 
 #include "SexyAppBase.h"
-#include "CursorPointerBitmap.inc"
-#include "CursorHandBitmap.inc"
 
 EM_JS(void, PvZEnsureCanvasBrowserCursor, (), {
 	if (Module.pvzCanvasCursorReady) return;
@@ -16,6 +12,23 @@ EM_JS(void, PvZEnsureCanvasBrowserCursor, (), {
 	var getCanvas = function() {
 		return Module.canvas || document.getElementById('canvas');
 	};
+
+	Module.pvzCursorSources = [
+		{
+			dataUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAqklEQVR42u3XQQrAIAwEQP//Kn9WKSiIRBM12e2hgqeCTqOta3pqS6xWJ+chGoCGaICcMwfRAyjLMQLgCAkARcwAMMQKAEFogHCEBRCKsALCEDuAEMQuwB1xAnBFnALcEDcAF4QV8D6f9SvEDCCdDVo/QkiA9lbSCWlYkjvAUFLsj6ifHJYTVpEMUoVVKIVUQRs0vAra7qVnRthe+HRy/qsgfbLUu6Tnlb4AgaQqovkXqhYAAAAASUVORK5CYII=',
+			width: 32,
+			height: 32,
+			hotX: 1,
+			hotY: 4
+		},
+		{
+			dataUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAaklEQVR42u3VywrAIAxE0fz/T+tGQaNihOgYmAtu2+OjVoQxxgKVysC8vIZCEPAd4DmkAyAwS8AEgwN4nhE9IzPACzEs7a5rAP1wS27bgAZIe7CggNO8P8dYgFuXEQFivYye/JBgAOOIVQaps8BcUFPTsgAAAABJRU5ErkJggg==',
+			width: 32,
+			height: 32,
+			hotX: 10,
+			hotY: 10
+		}
+	];
 
 	Module.pvzGetCanvasCursorScalePercent = function() {
 		var canvas = getCanvas();
@@ -36,14 +49,36 @@ EM_JS(void, PvZEnsureCanvasBrowserCursor, (), {
 		Module.pvzCanvasCursorStyle = cursorStyle;
 	};
 
+	Module.pvzLoadCanvasCursorSource = function(cursorKind, source) {
+		if (source.image) return source.loaded;
+
+		var image = new Image();
+		image.onload = function() {
+			source.loaded = true;
+			source.cursorStyle = null;
+			if (Module.pvzCanvasCursorKind === cursorKind) {
+				Module.pvzApplyCanvasCursorKind(cursorKind);
+			}
+		};
+		image.src = source.dataUrl;
+		source.image = image;
+		source.loaded = image.complete && image.naturalWidth > 0;
+		return source.loaded;
+	};
+
 	Module.pvzApplyCanvasCursorKind = function(cursorKind) {
-		var sources = Module.pvzCursorSources;
-		var source = sources && sources[cursorKind];
+		var source = Module.pvzCursorSources && Module.pvzCursorSources[cursorKind];
 		if (!source) return false;
 
+		Module.pvzCanvasCursorKind = cursorKind;
 		var scalePercent = Module.pvzGetCanvasCursorScalePercent();
 		if (source.cursorStyle && source.scalePercent === scalePercent) {
 			Module.pvzSetCanvasCursorStyle(source.cursorStyle);
+			return true;
+		}
+
+		if (!Module.pvzLoadCanvasCursorSource(cursorKind, source)) {
+			Module.pvzSetCanvasCursorStyle('url("' + source.dataUrl + '") ' + source.hotX + ' ' + source.hotY + ', auto');
 			return true;
 		}
 
@@ -63,7 +98,7 @@ EM_JS(void, PvZEnsureCanvasBrowserCursor, (), {
 		var ctx = scaled.getContext('2d');
 		ctx.imageSmoothingEnabled = false;
 		ctx.clearRect(0, 0, width, height);
-		ctx.drawImage(source.canvas, 0, 0, width, height);
+		ctx.drawImage(source.image, 0, 0, width, height);
 
 		source.scalePercent = scalePercent;
 		source.cursorStyle = 'url("' + scaled.toDataURL('image/png') + '") ' + hotX + ' ' + hotY + ', auto';
@@ -74,131 +109,41 @@ EM_JS(void, PvZEnsureCanvasBrowserCursor, (), {
 	Module.pvzCanvasCursorReady = true;
 });
 
-EM_JS(void, PvZSetCanvasBrowserCursorStyle, (const char* theCursorStyle), {
-	Module.pvzSetCanvasCursorStyle(UTF8ToString(theCursorStyle));
+EM_JS(void, PvZClearCanvasBrowserCursorKind, (), {
+	Module.pvzCanvasCursorKind = -1;
+});
+
+EM_JS(void, PvZHideCanvasBrowserCursor, (), {
+	Module.pvzCanvasCursorKind = -1;
+	Module.pvzSetCanvasCursorStyle('none');
 });
 
 EM_JS(int, PvZSetCanvasBrowserCursorKind, (int theKind), {
 	return Module.pvzApplyCanvasCursorKind(theKind) ? 1 : 0;
 });
 
-EM_JS(void, PvZSetCanvasBrowserCursorPixels, (int theKind, const uint32_t* thePixels, int theWidth, int theHeight, int theHotX, int theHotY), {
-	var sourceCanvas = document.createElement('canvas');
-	sourceCanvas.width = theWidth;
-	sourceCanvas.height = theHeight;
-
-	var ctx = sourceCanvas.getContext('2d');
-	var imageData = ctx.createImageData(theWidth, theHeight);
-	var src = thePixels >>> 0;
-	for (var i = 0, j = 0; i < theWidth * theHeight; i++, j += 4) {
-		var p = src + i * 4;
-		imageData.data[j + 0] = HEAPU8[p + 2];
-		imageData.data[j + 1] = HEAPU8[p + 1];
-		imageData.data[j + 2] = HEAPU8[p + 0];
-		imageData.data[j + 3] = HEAPU8[p + 3];
-	}
-
-	ctx.putImageData(imageData, 0, 0);
-	if (!Module.pvzCursorSources) {
-		Module.pvzCursorSources = [];
-	}
-
-	Module.pvzCursorSources[theKind] = {
-		canvas: sourceCanvas,
-		width: theWidth,
-		height: theHeight,
-		hotX: theHotX,
-		hotY: theHotY,
-		scalePercent: 0,
-		cursorStyle: null
-	};
-	Module.pvzApplyCanvasCursorKind(theKind);
-});
-
 namespace Sexy
 {
 
-enum class PvZCursorKind
+static inline bool ApplyPvZBrowserCursor(int theCursorNum)
 {
-	Pointer = 0,
-	Hand = 1
-};
-
-struct PvZCursorData
-{
-	const uint32_t* mPixels = nullptr;
-	int mWidth = 0;
-	int mHeight = 0;
-	int mHotX = 0;
-	int mHotY = 0;
-};
-
-static inline bool PvZCursorKindFromCursorNum(int theCursorNum, PvZCursorKind& theKind)
-{
+	PvZEnsureCanvasBrowserCursor();
 	switch (theCursorNum)
 	{
 	case CURSOR_POINTER:
-		theKind = PvZCursorKind::Pointer;
-		return true;
+		return PvZSetCanvasBrowserCursorKind(0) != 0;
 	case CURSOR_HAND:
-		theKind = PvZCursorKind::Hand;
-		return true;
+		return PvZSetCanvasBrowserCursorKind(1) != 0;
 	default:
+		PvZClearCanvasBrowserCursorKind();
 		return false;
 	}
-}
-
-static inline bool PvZGetCursorData(PvZCursorKind theKind, PvZCursorData& theData)
-{
-	switch (theKind)
-	{
-	case PvZCursorKind::Pointer:
-		theData = {
-			kPvZPointerCursorPixels,
-			kPvZPointerCursorWidth,
-			kPvZPointerCursorHeight,
-			kPvZPointerCursorHotX,
-			kPvZPointerCursorHotY
-		};
-		return true;
-	case PvZCursorKind::Hand:
-		theData = {
-			kPvZHandCursorPixels,
-			kPvZHandCursorWidth,
-			kPvZHandCursorHeight,
-			kPvZHandCursorHotX,
-			kPvZHandCursorHotY
-		};
-		return true;
-	}
-
-	return false;
-}
-
-static inline bool ApplyPvZBrowserCursorKind(PvZCursorKind theKind)
-{
-	PvZEnsureCanvasBrowserCursor();
-	if (PvZSetCanvasBrowserCursorKind(static_cast<int>(theKind)) != 0)
-		return true;
-
-	PvZCursorData aData;
-	if (!PvZGetCursorData(theKind, aData))
-		return false;
-
-	PvZSetCanvasBrowserCursorPixels(static_cast<int>(theKind), aData.mPixels, aData.mWidth, aData.mHeight, aData.mHotX, aData.mHotY);
-	return true;
-}
-
-static inline bool ApplyPvZBrowserCursor(int theCursorNum)
-{
-	PvZCursorKind aKind;
-	return PvZCursorKindFromCursorNum(theCursorNum, aKind) && ApplyPvZBrowserCursorKind(aKind);
 }
 
 static inline void HidePvZBrowserCursor()
 {
 	PvZEnsureCanvasBrowserCursor();
-	PvZSetCanvasBrowserCursorStyle("none");
+	PvZHideCanvasBrowserCursor();
 }
 
 } // namespace Sexy
