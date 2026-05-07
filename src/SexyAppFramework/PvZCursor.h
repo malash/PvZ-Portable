@@ -24,22 +24,22 @@ EM_JS(void, PvZApplyBrowserCursorKind, (int theCursorKind), {
 		}
 	];
 
-	const getState = () => {
-		if (!Module.pvzCanvasCursorState) {
-			Module.pvzCanvasCursorState = {
-				currentKind: -1
-			};
+	const loadImage = async (source, cache) => {
+		if (cache.loaded) return true;
+
+		if (!cache.decodePromise) {
+			const image = new Image(source.width, source.height);
+			image.src = source.dataUrl;
+			cache.image = image;
+			cache.decodePromise = image.decode()
+				.then(() => {
+					cache.loaded = true;
+					return true;
+				})
+				.catch(() => false);
 		}
 
-		return Module.pvzCanvasCursorState;
-	};
-
-	const getCache = (kind) => {
-		if (!Module.pvzCanvasCursorCache) {
-			Module.pvzCanvasCursorCache = CURSOR_SOURCES.map(() => ({}));
-		}
-
-		return Module.pvzCanvasCursorCache[kind];
+		return cache.decodePromise;
 	};
 
 	const getScalePercent = (canvas) => {
@@ -49,32 +49,18 @@ EM_JS(void, PvZApplyBrowserCursorKind, (int theCursorKind), {
 		return Math.max(100, Math.round(Math.min(scaleX, scaleY) * 100));
 	};
 
-	const loadImage = async (source, cache) => {
-		if (cache.loaded) return true;
-
-		if (!cache.image) {
-			const image = new Image();
-			image.src = source.dataUrl;
-			cache.image = image;
-		}
-
-		try {
-			await cache.image.decode();
-			cache.loaded = true;
-			return true;
-		} catch (error) {
-			return false;
-		}
-	};
-
-	const applyCursor = async (state, kind) => {
+	const applyCursor = async (kind) => {
 		const canvas = Module.canvas;
 		const source = CURSOR_SOURCES[kind];
 		if (!canvas || !source) return;
 
-		const cache = getCache(kind);
-		state.currentKind = kind;
-		const scalePercent = getScalePercent(canvas);
+		if (!Module.pvzCanvasCursorCache) {
+			Module.pvzCanvasCursorCache = CURSOR_SOURCES.map(() => ({}));
+		}
+
+		const cache = Module.pvzCanvasCursorCache[kind];
+		Module.pvzCanvasCursorKind = kind;
+		let scalePercent = getScalePercent(canvas);
 		if (cache.cursorStyle && cache.scalePercent === scalePercent) {
 			canvas.style.cursor = cache.cursorStyle;
 			return;
@@ -82,8 +68,8 @@ EM_JS(void, PvZApplyBrowserCursorKind, (int theCursorKind), {
 
 		if (!cache.loaded) {
 			canvas.style.cursor = 'url("' + source.dataUrl + '") ' + source.hotX + ' ' + source.hotY + ', auto';
-			if (!await loadImage(source, cache) || state.currentKind !== kind) return;
-			cache.cursorStyle = null;
+			const loaded = await loadImage(source, cache);
+			if (!loaded || Module.pvzCanvasCursorKind !== kind) return;
 		}
 
 		const width = Math.max(1, Math.round(source.width * scalePercent / 100));
@@ -96,26 +82,20 @@ EM_JS(void, PvZApplyBrowserCursorKind, (int theCursorKind), {
 		scaledCanvas.height = height;
 		const ctx = scaledCanvas.getContext('2d');
 		ctx.imageSmoothingEnabled = false;
-		ctx.clearRect(0, 0, width, height);
 		ctx.drawImage(cache.image, 0, 0, width, height);
 
 		cache.scalePercent = scalePercent;
-		cache.cursorStyle = 'url("' + scaledCanvas.toDataURL('image/png') + '") ' + hotX + ' ' + hotY + ', auto';
+		const scaledDataUrl = scaledCanvas.toDataURL('image/png');
+		cache.cursorStyle = 'url("' + scaledDataUrl + '") ' + hotX + ' ' + hotY + ', auto';
 		canvas.style.cursor = cache.cursorStyle;
 	};
 
-	applyCursor(getState(), theCursorKind);
+	applyCursor(theCursorKind);
 });
 
 EM_JS(void, PvZHideBrowserCursor, (), {
-	const canvas = Module.canvas;
-	const state = Module.pvzCanvasCursorState || {};
-	state.currentKind = -1;
-	Module.pvzCanvasCursorState = state;
-
-	if (canvas) {
-		canvas.style.cursor = 'none';
-	}
+	Module.pvzCanvasCursorKind = -1;
+	if (Module.canvas) Module.canvas.style.cursor = 'none';
 });
 
 namespace Sexy
@@ -138,6 +118,7 @@ static inline bool ApplyPvZBrowserCursor(int theCursorNum)
 		PvZApplyBrowserCursorKind(PVZ_BROWSER_CURSOR_HAND);
 		return true;
 	default:
+		PvZHideBrowserCursor();
 		return false;
 	}
 }
