@@ -2416,7 +2416,7 @@ void SexyAppBase::EnforceCursor()
 		}
 		else
 		{
-			ApplyPvZBrowserCursorClass(PvZCursorKind::Pointer);
+			ApplyPvZBrowserCursorKind(PvZCursorKind::Pointer);
 		}
 
 		return;
@@ -2435,7 +2435,7 @@ void SexyAppBase::EnforceCursor()
 		}
 		else
 		{
-			ApplyPvZBrowserCursorClass(PvZCursorKind::Hand);
+			ApplyPvZBrowserCursorKind(PvZCursorKind::Hand);
 		}
 
 		return;
