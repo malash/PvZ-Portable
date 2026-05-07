@@ -26,6 +26,38 @@ EM_JS(double, PvZGetBrowserCanvasScale, (), {
 	return Math.max(1, Math.min(scaleX, scaleY));
 });
 
+EM_JS(void, PvZEnsureCanvasBrowserCursorEvents, (), {
+	if (Module.pvzCanvasCursorEventsReady) return;
+
+	var canvas = Module.canvas || document.getElementById('canvas');
+	if (!canvas) return;
+
+	Module.pvzRestoreCanvasCursor = function() {
+		var canvas = Module.canvas || document.getElementById('canvas');
+		var cursorStyle = Module.pvzCanvasCursorStyle;
+		if (!canvas || !cursorStyle || canvas.style.cursor === cursorStyle) return;
+		canvas.style.cursor = cursorStyle;
+	};
+
+	var restoreSoon = function() {
+		if (Module.pvzCanvasCursorRestorePending) return;
+		Module.pvzCanvasCursorRestorePending = true;
+		setTimeout(function() {
+			Module.pvzCanvasCursorRestorePending = false;
+			Module.pvzRestoreCanvasCursor();
+		}, 0);
+	};
+
+	canvas.addEventListener('mouseenter', restoreSoon);
+	canvas.addEventListener('mousemove', function() {
+		if (Module.pvzCanvasCursorStyle && canvas.style.cursor !== Module.pvzCanvasCursorStyle) {
+			restoreSoon();
+		}
+	});
+
+	Module.pvzCanvasCursorEventsReady = true;
+});
+
 EM_JS(void, PvZSetCanvasBrowserCursorStyle, (const char* theCursorStyle), {
 	var canvas = Module.canvas || document.getElementById('canvas');
 	if (!canvas) return;
@@ -320,22 +352,26 @@ static inline bool ApplyPvZBrowserCursor(PvZCursorKind theKind, int theScalePerc
 	if (!PvZBuildCursorBitmap(theKind, theScalePercent, aBitmap))
 		return false;
 
+	PvZEnsureCanvasBrowserCursorEvents();
 	PvZSetCanvasBrowserCursorPixels(static_cast<int>(theKind), aBitmap.mPixels.data(), aBitmap.mWidth, aBitmap.mHeight, aBitmap.mHotX, aBitmap.mHotY);
 	return true;
 }
 
 static inline void ApplyPvZBrowserCursorKind(PvZCursorKind theKind)
 {
+	PvZEnsureCanvasBrowserCursorEvents();
 	PvZSetCanvasBrowserCursorKind(static_cast<int>(theKind));
 }
 
 static inline void HidePvZBrowserCursor()
 {
+	PvZEnsureCanvasBrowserCursorEvents();
 	PvZSetCanvasBrowserCursorStyle("none");
 }
 
 static inline void ApplyPvZBrowserSystemCursor(int theCursorNum)
 {
+	PvZEnsureCanvasBrowserCursorEvents();
 	switch (theCursorNum)
 	{
 	case CURSOR_TEXT:
