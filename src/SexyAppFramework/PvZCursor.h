@@ -26,14 +26,15 @@ EM_JS(double, PvZGetBrowserCanvasScale, (), {
 	return Math.max(1, Math.min(scaleX, scaleY));
 });
 
-EM_JS(void, PvZEnsureCanvasBrowserCursorEvents, (), {
-	if (Module.pvzCanvasCursorEventsReady) return;
+EM_JS(void, PvZEnsureCanvasBrowserCursor, (), {
+	if (Module.pvzCanvasCursorReady) return;
 
-	var canvas = Module.canvas || document.getElementById('canvas');
-	if (!canvas) return;
+	var getCanvas = function() {
+		return Module.canvas || document.getElementById('canvas');
+	};
 
 	Module.pvzRestoreCanvasCursor = function() {
-		var canvas = Module.canvas || document.getElementById('canvas');
+		var canvas = getCanvas();
 		var cursorStyle = Module.pvzCanvasCursorStyle;
 		if (!canvas || !cursorStyle || canvas.style.cursor === cursorStyle) return;
 		canvas.style.cursor = cursorStyle;
@@ -48,6 +49,19 @@ EM_JS(void, PvZEnsureCanvasBrowserCursorEvents, (), {
 		}, 0);
 	};
 
+	Module.pvzSetCanvasCursorStyle = function(cursorStyle) {
+		var canvas = getCanvas();
+		if (!canvas) return;
+		if (Module.pvzCanvasCursorStyle === cursorStyle && canvas.style.cursor === cursorStyle) return;
+
+		canvas.style.cursor = cursorStyle;
+		Module.pvzCanvasCursorStyle = cursorStyle;
+		Module.pvzScheduleCanvasCursorRestore();
+	};
+
+	var canvas = getCanvas();
+	if (!canvas) return;
+
 	canvas.addEventListener('mouseenter', Module.pvzScheduleCanvasCursorRestore);
 	canvas.addEventListener('mousemove', function() {
 		if (Module.pvzCanvasCursorStyle && canvas.style.cursor !== Module.pvzCanvasCursorStyle) {
@@ -55,40 +69,21 @@ EM_JS(void, PvZEnsureCanvasBrowserCursorEvents, (), {
 		}
 	});
 
-	Module.pvzCanvasCursorEventsReady = true;
+	Module.pvzCanvasCursorReady = true;
 });
 
 EM_JS(void, PvZSetCanvasBrowserCursorStyle, (const char* theCursorStyle), {
-	var canvas = Module.canvas || document.getElementById('canvas');
-	if (!canvas) return;
-
-	var cursorStyle = UTF8ToString(theCursorStyle);
-	if (Module.pvzCanvasCursorStyle === cursorStyle && canvas.style.cursor === cursorStyle) return;
-
-	canvas.style.cursor = cursorStyle;
-	Module.pvzCanvasCursorStyle = cursorStyle;
-	Module.pvzScheduleCanvasCursorRestore();
+	Module.pvzSetCanvasCursorStyle(UTF8ToString(theCursorStyle));
 });
 
 EM_JS(void, PvZSetCanvasBrowserCursorKind, (int theKind), {
 	var cursorStyles = Module.pvzCursorStyles;
 	if (!cursorStyles || !cursorStyles[theKind]) return;
 
-	var canvas = Module.canvas || document.getElementById('canvas');
-	if (!canvas) return;
-
-	var cursorStyle = cursorStyles[theKind];
-	if (Module.pvzCanvasCursorStyle === cursorStyle && canvas.style.cursor === cursorStyle) return;
-
-	canvas.style.cursor = cursorStyle;
-	Module.pvzCanvasCursorStyle = cursorStyle;
-	Module.pvzScheduleCanvasCursorRestore();
+	Module.pvzSetCanvasCursorStyle(cursorStyles[theKind]);
 });
 
 EM_JS(void, PvZSetCanvasBrowserCursorPixels, (int theKind, const uint32_t* thePixels, int theWidth, int theHeight, int theHotX, int theHotY), {
-	var canvas = Module.canvas || document.getElementById('canvas');
-	if (!canvas) return;
-
 	var scratch = Module.pvzCursorCanvas;
 	if (!scratch) {
 		scratch = document.createElement('canvas');
@@ -115,11 +110,7 @@ EM_JS(void, PvZSetCanvasBrowserCursorPixels, (int theKind, const uint32_t* thePi
 	}
 
 	Module.pvzCursorStyles[theKind] = cursorStyle;
-	if (Module.pvzCanvasCursorStyle === cursorStyle && canvas.style.cursor === cursorStyle) return;
-
-	canvas.style.cursor = cursorStyle;
-	Module.pvzCanvasCursorStyle = cursorStyle;
-	Module.pvzScheduleCanvasCursorRestore();
+	Module.pvzSetCanvasCursorStyle(cursorStyle);
 });
 #endif
 
@@ -376,7 +367,7 @@ static inline SDL_Cursor* CreatePvZColorCursor(PvZCursorKind theKind, int theSca
 #ifdef __EMSCRIPTEN__
 static inline void ApplyPvZBrowserCursorKind(PvZCursorKind theKind)
 {
-	PvZEnsureCanvasBrowserCursorEvents();
+	PvZEnsureCanvasBrowserCursor();
 	PvZSetCanvasBrowserCursorKind(static_cast<int>(theKind));
 }
 
@@ -393,7 +384,7 @@ static inline bool ApplyPvZBrowserCursor(PvZCursorKind theKind, int theScalePerc
 	if (!PvZBuildCursorBitmap(theKind, theScalePercent, aBitmap))
 		return false;
 
-	PvZEnsureCanvasBrowserCursorEvents();
+	PvZEnsureCanvasBrowserCursor();
 	PvZSetCanvasBrowserCursorPixels(static_cast<int>(theKind), aBitmap.mPixels.data(), aBitmap.mWidth, aBitmap.mHeight, aBitmap.mHotX, aBitmap.mHotY);
 	aCachedScalePercent = theScalePercent;
 	return true;
@@ -407,43 +398,39 @@ static inline bool ApplyPvZBrowserCursor(SexyAppBase* theApp, int theCursorNum)
 
 static inline void HidePvZBrowserCursor()
 {
-	PvZEnsureCanvasBrowserCursorEvents();
+	PvZEnsureCanvasBrowserCursor();
 	PvZSetCanvasBrowserCursorStyle("none");
+}
+
+static inline const char* GetPvZBrowserSystemCursorStyle(int theCursorNum)
+{
+	switch (theCursorNum)
+	{
+	case CURSOR_TEXT:
+		return "text";
+	case CURSOR_CIRCLE_SLASH:
+		return "not-allowed";
+	case CURSOR_SIZEALL:
+		return "move";
+	case CURSOR_SIZENESW:
+		return "nesw-resize";
+	case CURSOR_SIZENS:
+		return "ns-resize";
+	case CURSOR_SIZENWSE:
+		return "nwse-resize";
+	case CURSOR_SIZEWE:
+		return "ew-resize";
+	case CURSOR_WAIT:
+		return "wait";
+	default:
+		return "default";
+	}
 }
 
 static inline void ApplyPvZBrowserSystemCursor(int theCursorNum)
 {
-	PvZEnsureCanvasBrowserCursorEvents();
-	switch (theCursorNum)
-	{
-	case CURSOR_TEXT:
-		PvZSetCanvasBrowserCursorStyle("text");
-		break;
-	case CURSOR_CIRCLE_SLASH:
-		PvZSetCanvasBrowserCursorStyle("not-allowed");
-		break;
-	case CURSOR_SIZEALL:
-		PvZSetCanvasBrowserCursorStyle("move");
-		break;
-	case CURSOR_SIZENESW:
-		PvZSetCanvasBrowserCursorStyle("nesw-resize");
-		break;
-	case CURSOR_SIZENS:
-		PvZSetCanvasBrowserCursorStyle("ns-resize");
-		break;
-	case CURSOR_SIZENWSE:
-		PvZSetCanvasBrowserCursorStyle("nwse-resize");
-		break;
-	case CURSOR_SIZEWE:
-		PvZSetCanvasBrowserCursorStyle("ew-resize");
-		break;
-	case CURSOR_WAIT:
-		PvZSetCanvasBrowserCursorStyle("wait");
-		break;
-	default:
-		PvZSetCanvasBrowserCursorStyle("default");
-		break;
-	}
+	PvZEnsureCanvasBrowserCursor();
+	PvZSetCanvasBrowserCursorStyle(GetPvZBrowserSystemCursorStyle(theCursorNum));
 }
 #endif
 
