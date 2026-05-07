@@ -141,6 +141,31 @@ struct PvZCursorBitmap
 	int mHotY = 0;
 };
 
+static inline bool PvZCursorKindFromCursorNum(int theCursorNum, PvZCursorKind& theKind)
+{
+	if (theCursorNum == CURSOR_POINTER)
+	{
+		theKind = PvZCursorKind::Pointer;
+		return true;
+	}
+	if (theCursorNum == CURSOR_HAND)
+	{
+		theKind = PvZCursorKind::Hand;
+		return true;
+	}
+
+	return false;
+}
+
+static inline int& PvZCursorScaleCache(PvZCursorKind theKind)
+{
+	static int aPointerScalePercent = 0;
+	static int aHandScalePercent = 0;
+	return theKind == PvZCursorKind::Pointer ? aPointerScalePercent : aHandScalePercent;
+}
+
+static inline int GetPvZCursorScalePercent(SexyAppBase* theApp);
+
 static inline uint16_t PvZReadLE16(const unsigned char* thePtr)
 {
 	return static_cast<uint16_t>(thePtr[0]) | (static_cast<uint16_t>(thePtr[1]) << 8);
@@ -349,21 +374,35 @@ static inline SDL_Cursor* CreatePvZColorCursor(PvZCursorKind theKind, int theSca
 }
 
 #ifdef __EMSCRIPTEN__
+static inline void ApplyPvZBrowserCursorKind(PvZCursorKind theKind)
+{
+	PvZEnsureCanvasBrowserCursorEvents();
+	PvZSetCanvasBrowserCursorKind(static_cast<int>(theKind));
+}
+
 static inline bool ApplyPvZBrowserCursor(PvZCursorKind theKind, int theScalePercent)
 {
+	int& aCachedScalePercent = PvZCursorScaleCache(theKind);
+	if (aCachedScalePercent == theScalePercent)
+	{
+		ApplyPvZBrowserCursorKind(theKind);
+		return true;
+	}
+
 	PvZCursorBitmap aBitmap;
 	if (!PvZBuildCursorBitmap(theKind, theScalePercent, aBitmap))
 		return false;
 
 	PvZEnsureCanvasBrowserCursorEvents();
 	PvZSetCanvasBrowserCursorPixels(static_cast<int>(theKind), aBitmap.mPixels.data(), aBitmap.mWidth, aBitmap.mHeight, aBitmap.mHotX, aBitmap.mHotY);
+	aCachedScalePercent = theScalePercent;
 	return true;
 }
 
-static inline void ApplyPvZBrowserCursorKind(PvZCursorKind theKind)
+static inline bool ApplyPvZBrowserCursor(SexyAppBase* theApp, int theCursorNum)
 {
-	PvZEnsureCanvasBrowserCursorEvents();
-	PvZSetCanvasBrowserCursorKind(static_cast<int>(theKind));
+	PvZCursorKind aKind;
+	return PvZCursorKindFromCursorNum(theCursorNum, aKind) && ApplyPvZBrowserCursor(aKind, GetPvZCursorScalePercent(theApp));
 }
 
 static inline void HidePvZBrowserCursor()
@@ -431,6 +470,30 @@ static inline int GetPvZCursorScalePercent(SexyAppBase* theApp)
 	const double aScale = std::max(1.0, std::min(aScaleX, aScaleY));
 	return std::max(100, static_cast<int>(aScale * 100.0 + 0.5));
 #endif
+}
+
+static inline SDL_Cursor* GetPvZColorCursor(SexyAppBase* theApp, int theCursorNum, SDL_Cursor*& theCachedCursor)
+{
+	PvZCursorKind aKind;
+	if (!PvZCursorKindFromCursorNum(theCursorNum, aKind))
+		return nullptr;
+
+	const int aScalePercent = GetPvZCursorScalePercent(theApp);
+	int& aCachedScalePercent = PvZCursorScaleCache(aKind);
+	if (theCachedCursor != nullptr && aCachedScalePercent != aScalePercent)
+	{
+		SDL_FreeCursor(theCachedCursor);
+		theCachedCursor = nullptr;
+	}
+
+	if (theCachedCursor == nullptr)
+	{
+		theCachedCursor = CreatePvZColorCursor(aKind, aScalePercent);
+		if (theCachedCursor != nullptr)
+			aCachedScalePercent = aScalePercent;
+	}
+
+	return theCachedCursor;
 }
 
 } // namespace Sexy

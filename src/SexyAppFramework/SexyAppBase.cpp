@@ -262,8 +262,6 @@ SexyAppBase::SexyAppBase()
 	mCustomCursor = nullptr;
 	mCustomCursorImage = nullptr;
 	mCustomCursorImageNum = -1;
-	mPointerCursorScalePercent = 0;
-	mHandCursorScalePercent = 0;
 	mSoundManager = nullptr;
 	mCursorNum = CURSOR_POINTER;		
 	mMouseIn = false;
@@ -2403,43 +2401,8 @@ void SexyAppBase::EnforceCursor()
 	}
 
 #ifdef __EMSCRIPTEN__
-	if (aCursorNum == CURSOR_POINTER)
-	{
-		const int aScalePercent = GetPvZCursorScalePercent(this);
-		if (mPointerCursorScalePercent != aScalePercent)
-		{
-			if (!ApplyPvZBrowserCursor(PvZCursorKind::Pointer, aScalePercent))
-				return;
-
-			mPointerCursorScalePercent = aScalePercent;
-			mHandCursorScalePercent = 0;
-		}
-		else
-		{
-			ApplyPvZBrowserCursorKind(PvZCursorKind::Pointer);
-		}
-
+	if (ApplyPvZBrowserCursor(this, aCursorNum))
 		return;
-	}
-
-	if (aCursorNum == CURSOR_HAND)
-	{
-		const int aScalePercent = GetPvZCursorScalePercent(this);
-		if (mHandCursorScalePercent != aScalePercent)
-		{
-			if (!ApplyPvZBrowserCursor(PvZCursorKind::Hand, aScalePercent))
-				return;
-
-			mHandCursorScalePercent = aScalePercent;
-			mPointerCursorScalePercent = 0;
-		}
-		else
-		{
-			ApplyPvZBrowserCursorKind(PvZCursorKind::Hand);
-		}
-
-		return;
-	}
 
 	ApplyPvZBrowserSystemCursor(aCursorNum);
 	return;
@@ -2476,41 +2439,14 @@ void SexyAppBase::EnforceCursor()
 	if (aCursor == nullptr)
 	{
 		SDL_Cursor*& aCachedCursor = mSysCursors[aCursorNum];
-		if (aCursorNum == CURSOR_POINTER)
+		aCursor = GetPvZColorCursor(this, aCursorNum, aCachedCursor);
+		if (aCursor == nullptr)
 		{
-			const int aScalePercent = GetPvZCursorScalePercent(this);
-			if (aCachedCursor != nullptr && mPointerCursorScalePercent != aScalePercent)
-			{
-				SDL_FreeCursor(aCachedCursor);
-				aCachedCursor = nullptr;
-			}
-
 			if (aCachedCursor == nullptr)
-			{
-				aCachedCursor = CreatePvZColorCursor(PvZCursorKind::Pointer, aScalePercent);
-				mPointerCursorScalePercent = aScalePercent;
-			}
-		}
-		else if (aCursorNum == CURSOR_HAND)
-		{
-			const int aScalePercent = GetPvZCursorScalePercent(this);
-			if (aCachedCursor != nullptr && mHandCursorScalePercent != aScalePercent)
-			{
-				SDL_FreeCursor(aCachedCursor);
-				aCachedCursor = nullptr;
-			}
-
-			if (aCachedCursor == nullptr)
-			{
-				aCachedCursor = CreatePvZColorCursor(PvZCursorKind::Hand, aScalePercent);
-				mHandCursorScalePercent = aScalePercent;
-			}
+				aCachedCursor = SDL_CreateSystemCursor(CursorNumToSystemCursor(aCursorNum));
+			aCursor = aCachedCursor;
 		}
 
-		if (aCachedCursor == nullptr)
-			aCachedCursor = SDL_CreateSystemCursor(CursorNumToSystemCursor(aCursorNum));
-
-		aCursor = aCachedCursor;
 		if (aCursor == nullptr)
 			aCursor = SDL_GetDefaultCursor();
 	}

@@ -257,8 +257,6 @@ public:
 
 	int						mCursorNum;
 	SDL_Cursor*				mSysCursors[NUM_CURSORS];
-	int						mPointerCursorScalePercent;
-	int						mHandCursorScalePercent;
 	SDL_Cursor*				mCustomCursor;
 	Image*					mCustomCursorImage;
 	int						mCustomCursorImageNum;
