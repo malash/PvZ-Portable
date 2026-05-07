@@ -30,20 +30,14 @@ EM_JS(void, PvZSetBrowserCursorKind, (int theCursorKind), {
 		}
 	];
 
-	const loadImage = async (source, cache) => {
-		if (cache.loaded) return true;
-
-		if (!cache.image) {
-			const image = new Image(source.width, source.height);
-			image.src = source.dataUrl;
-			cache.image = image;
-		}
-
+	const loadImage = async (source) => {
+		const image = new Image(source.width, source.height);
+		image.src = source.dataUrl;
 		try {
-			await cache.image.decode();
-			return true;
+			await image.decode();
+			return image;
 		} catch (error) {
-			return false;
+			return null;
 		}
 	};
 
@@ -65,17 +59,14 @@ EM_JS(void, PvZSetBrowserCursorKind, (int theCursorKind), {
 
 		const cache = Module.pvzCanvasCursorCache[kind];
 		Module.pvzCanvasCursorKind = kind;
-		let scalePercent = getScalePercent(canvas);
+		const scalePercent = getScalePercent(canvas);
 		if (cache.cursorStyle && cache.scalePercent === scalePercent) {
 			canvas.style.cursor = cache.cursorStyle;
 			return;
 		}
 
-		if (!cache.loaded) {
-			const loaded = await loadImage(source, cache);
-			if (!loaded || Module.pvzCanvasCursorKind !== kind) return;
-			cache.loaded = true;
-		}
+		const image = await loadImage(source);
+		if (!image || Module.pvzCanvasCursorKind !== kind) return;
 
 		const width = Math.max(1, Math.round(source.width * scalePercent / 100));
 		const height = Math.max(1, Math.round(source.height * scalePercent / 100));
@@ -87,7 +78,7 @@ EM_JS(void, PvZSetBrowserCursorKind, (int theCursorKind), {
 		scaledCanvas.height = height;
 		const ctx = scaledCanvas.getContext('2d');
 		ctx.imageSmoothingEnabled = false;
-		ctx.drawImage(cache.image, 0, 0, width, height);
+		ctx.drawImage(image, 0, 0, width, height);
 
 		cache.scalePercent = scalePercent;
 		const scaledDataUrl = scaledCanvas.toDataURL('image/png');
