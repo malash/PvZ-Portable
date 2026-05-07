@@ -7,18 +7,6 @@
 #include "SexyAppBase.h"
 
 EM_JS(int, PvZApplyBrowserCursorKind, (int theCursorKind), {
-	var POINTER = 0;
-	var HAND = 1;
-	var cursorKind = -1;
-	if (theCursorKind === POINTER) {
-		cursorKind = POINTER;
-	} else if (theCursorKind === HAND) {
-		cursorKind = HAND;
-	} else {
-		if (Module.pvzCanvasCursor) Module.pvzCanvasCursor.kind = -1;
-		return 0;
-	}
-
 	var state = Module.pvzCanvasCursor;
 	if (!state || !state.sources) {
 		state = Object.assign(state || {}, {
@@ -118,7 +106,7 @@ EM_JS(int, PvZApplyBrowserCursorKind, (int theCursorKind), {
 		return true;
 	};
 
-	return applyCursor(cursorKind) ? 1 : 0;
+	return applyCursor(theCursorKind) ? 1 : 0;
 });
 
 EM_JS(void, PvZHideBrowserCursor, (), {
@@ -153,7 +141,6 @@ static inline bool ApplyPvZBrowserCursor(int theCursorNum)
 	case CURSOR_HAND:
 		return PvZApplyBrowserCursorKind(PVZ_BROWSER_CURSOR_HAND) != 0;
 	default:
-		PvZApplyBrowserCursorKind(-1);
 		return false;
 	}
 }
