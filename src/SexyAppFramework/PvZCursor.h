@@ -161,12 +161,6 @@ static inline bool PvZCursorKindFromCursorNum(int theCursorNum, PvZCursorKind& t
 	}
 }
 
-static inline int& PvZCursorScaleCache(PvZCursorKind theKind)
-{
-	static int aScalePercent[2] = {};
-	return aScalePercent[static_cast<int>(theKind)];
-}
-
 static inline PvZCursorResource GetPvZCursorResource(PvZCursorKind theKind)
 {
 	switch (theKind)
@@ -238,46 +232,34 @@ static inline bool PvZDecodeCursorDib(const unsigned char* theDib, size_t theDib
 		for (int x = 0; x < aWidth; x++)
 		{
 			uint8_t aRed = 0, aGreen = 0, aBlue = 0, anAlpha = 255;
-			if (aBitsPerPixel <= 8)
+			if (aBitsPerPixel == 1)
 			{
-				int aPaletteIndex = 0;
-				if (aBitsPerPixel == 1)
-					aPaletteIndex = (anXorRow[x / 8] >> (7 - (x % 8))) & 1;
-				else if (aBitsPerPixel == 4)
-					aPaletteIndex = (x % 2 == 0) ? ((anXorRow[x / 2] >> 4) & 0xF) : (anXorRow[x / 2] & 0xF);
-				else if (aBitsPerPixel == 8)
-					aPaletteIndex = anXorRow[x];
-				else
-					return false;
-
+				const int aPaletteIndex = (anXorRow[x / 8] >> (7 - (x % 8))) & 1;
 				if (aPaletteIndex >= aPaletteSize)
 					return false;
+
 				const unsigned char* aColor = theDib + aPaletteOffset + static_cast<size_t>(aPaletteIndex) * 4;
 				aBlue = aColor[0];
 				aGreen = aColor[1];
 				aRed = aColor[2];
 			}
-			else if (aBitsPerPixel == 24)
+			else if (aBitsPerPixel == 4)
 			{
-				const unsigned char* aColor = anXorRow + x * 3;
+				const int aPaletteIndex = (x % 2 == 0) ? ((anXorRow[x / 2] >> 4) & 0xF) : (anXorRow[x / 2] & 0xF);
+				if (aPaletteIndex >= aPaletteSize)
+					return false;
+
+				const unsigned char* aColor = theDib + aPaletteOffset + static_cast<size_t>(aPaletteIndex) * 4;
 				aBlue = aColor[0];
 				aGreen = aColor[1];
 				aRed = aColor[2];
-			}
-			else if (aBitsPerPixel == 32)
-			{
-				const unsigned char* aColor = anXorRow + x * 4;
-				aBlue = aColor[0];
-				aGreen = aColor[1];
-				aRed = aColor[2];
-				anAlpha = aColor[3];
 			}
 			else
 			{
 				return false;
 			}
 
-			if (((anAndRow[x / 8] >> (7 - (x % 8))) & 1) != 0 && aBitsPerPixel != 32)
+			if (((anAndRow[x / 8] >> (7 - (x % 8))) & 1) != 0)
 				anAlpha = 0;
 
 			theBitmap.mPixels[static_cast<size_t>(y) * aWidth + x] =
@@ -350,12 +332,13 @@ static inline void HidePvZBrowserCursor()
 	PvZSetCanvasBrowserCursorStyle("none");
 }
 
-static inline SDL_Cursor* GetPvZColorCursor(SexyAppBase*, int, SDL_Cursor*&)
+#else
+static inline int& PvZCursorScaleCache(PvZCursorKind theKind)
 {
-	return nullptr;
+	static int aScalePercent[2] = {};
+	return aScalePercent[static_cast<int>(theKind)];
 }
 
-#else
 static inline bool PvZScaleCursorBitmap(const PvZCursorBitmap& theSource, int theScalePercent, PvZCursorBitmap& theDest)
 {
 	if (theSource.mPixels.empty() || theSource.mWidth <= 0 || theSource.mHeight <= 0)

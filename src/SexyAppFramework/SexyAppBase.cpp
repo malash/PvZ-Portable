@@ -2436,7 +2436,9 @@ void SexyAppBase::EnforceCursor()
 	if (aCursor == nullptr)
 	{
 		SDL_Cursor*& aCachedCursor = mSysCursors[aCursorNum];
+#ifndef __EMSCRIPTEN__
 		aCursor = GetPvZColorCursor(this, aCursorNum, aCachedCursor);
+#endif
 		if (aCursor == nullptr)
 		{
 			if (aCachedCursor == nullptr)
