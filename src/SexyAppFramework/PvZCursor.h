@@ -26,8 +26,24 @@ EM_JS(double, PvZGetBrowserCanvasScale, (), {
 	return Math.max(1, Math.min(scaleX, scaleY));
 });
 
-EM_JS(void, PvZEnsureCanvasBrowserCursorStyle, (), {
-	if (Module.pvzCanvasCursorStyleReady) return;
+EM_JS(void, PvZEnsureCanvasBrowserCursorSupport, (), {
+	if (Module.pvzCanvasCursorReady) return;
+
+	var cursorSpecs = [
+		['pvz-cursor-pointer', 'default'],
+		['pvz-cursor-hand', 'pointer'],
+		['pvz-cursor-default', 'default'],
+		['pvz-cursor-text', 'text'],
+		['pvz-cursor-not-allowed', 'not-allowed'],
+		['pvz-cursor-move', 'move'],
+		['pvz-cursor-nesw-resize', 'nesw-resize'],
+		['pvz-cursor-ns-resize', 'ns-resize'],
+		['pvz-cursor-nwse-resize', 'nwse-resize'],
+		['pvz-cursor-ew-resize', 'ew-resize'],
+		['pvz-cursor-wait', 'wait'],
+		['pvz-cursor-hidden', 'none']
+	];
+	var cursorClasses = cursorSpecs.map(function(theSpec) { return theSpec[0]; });
 
 	var style = document.getElementById('pvz-canvas-cursor-style');
 	if (!style) {
@@ -36,103 +52,62 @@ EM_JS(void, PvZEnsureCanvasBrowserCursorStyle, (), {
 		document.head.appendChild(style);
 	}
 
-	style.textContent =
-		'canvas.pvz-cursor-pointer { cursor: default !important; }\\n' +
-		'canvas.pvz-cursor-hand { cursor: pointer !important; }\\n' +
-		'canvas.pvz-cursor-default { cursor: default !important; }\\n' +
-		'canvas.pvz-cursor-text { cursor: text !important; }\\n' +
-		'canvas.pvz-cursor-not-allowed { cursor: not-allowed !important; }\\n' +
-		'canvas.pvz-cursor-move { cursor: move !important; }\\n' +
-		'canvas.pvz-cursor-nesw-resize { cursor: nesw-resize !important; }\\n' +
-		'canvas.pvz-cursor-ns-resize { cursor: ns-resize !important; }\\n' +
-		'canvas.pvz-cursor-nwse-resize { cursor: nwse-resize !important; }\\n' +
-		'canvas.pvz-cursor-ew-resize { cursor: ew-resize !important; }\\n' +
-		'canvas.pvz-cursor-wait { cursor: wait !important; }\\n' +
-		'canvas.pvz-cursor-hidden { cursor: none !important; }';
-
-	Module.pvzCanvasCursorClasses = [
-		'pvz-cursor-pointer',
-		'pvz-cursor-hand',
-		'pvz-cursor-default',
-		'pvz-cursor-text',
-		'pvz-cursor-not-allowed',
-		'pvz-cursor-move',
-		'pvz-cursor-nesw-resize',
-		'pvz-cursor-ns-resize',
-		'pvz-cursor-nwse-resize',
-		'pvz-cursor-ew-resize',
-		'pvz-cursor-wait',
-		'pvz-cursor-hidden'
-	];
+	style.textContent = cursorSpecs.map(function(theSpec) {
+		return 'canvas.' + theSpec[0] + ' { cursor: ' + theSpec[1] + ' !important; }';
+	}).join('\\n');
 
 	if (style.sheet && style.sheet.cssRules && style.sheet.cssRules.length >= 2) {
 		Module.pvzCursorPointerRule = style.sheet.cssRules[0];
 		Module.pvzCursorHandRule = style.sheet.cssRules[1];
 	}
-	Module.pvzCanvasCursorStyleReady = true;
+
+	Module.pvzSetCanvasCursorState = function(theState) {
+		var canvas = Module.canvas || document.getElementById('canvas');
+		if (!canvas) return;
+		if (canvas.style.cursor) {
+			canvas.style.removeProperty('cursor');
+		}
+
+		var nextClass = cursorClasses[theState] || '';
+		var hasCursorClass = cursorClasses.some(function(theClassName) {
+			return canvas.classList.contains(theClassName);
+		});
+		var domMatches = nextClass == '' ? !hasCursorClass : canvas.classList.contains(nextClass);
+		if (Module.pvzCanvasCursorClass === nextClass && domMatches) {
+			return;
+		}
+
+		canvas.classList.remove.apply(canvas.classList, cursorClasses);
+		if (nextClass != '') {
+			canvas.classList.add(nextClass);
+		}
+		Module.pvzCanvasCursorClass = nextClass;
+	};
+
+	Module.pvzSetCanvasCursorRule = function(theKind, theCursorStyle) {
+		var rule = theKind == 1 ? Module.pvzCursorHandRule : Module.pvzCursorPointerRule;
+		var key = theKind == 1 ? 'pvzCursorHandStyle' : 'pvzCursorPointerStyle';
+		if (Module[key] === theCursorStyle) return;
+
+		Module[key] = theCursorStyle;
+		if (rule) {
+			rule.style.setProperty('cursor', theCursorStyle, 'important');
+		}
+	};
+
+	Module.pvzCanvasCursorReady = true;
 });
 
 EM_JS(void, PvZSetCanvasBrowserCursorState, (int theState), {
-	var canvas = Module.canvas || document.getElementById('canvas');
-	if (!canvas) return;
-	if (canvas.style.cursor) {
-		canvas.style.removeProperty('cursor');
+	if (Module.pvzSetCanvasCursorState) {
+		Module.pvzSetCanvasCursorState(theState);
 	}
-
-	var cursorClasses = Module.pvzCanvasCursorClasses;
-	if (!cursorClasses) return;
-
-	var nextClass = '';
-	if (theState == 0) {
-		nextClass = 'pvz-cursor-pointer';
-	} else if (theState == 1) {
-		nextClass = 'pvz-cursor-hand';
-	} else if (theState == 2) {
-		nextClass = 'pvz-cursor-default';
-	} else if (theState == 3) {
-		nextClass = 'pvz-cursor-text';
-	} else if (theState == 4) {
-		nextClass = 'pvz-cursor-not-allowed';
-	} else if (theState == 5) {
-		nextClass = 'pvz-cursor-move';
-	} else if (theState == 6) {
-		nextClass = 'pvz-cursor-nesw-resize';
-	} else if (theState == 7) {
-		nextClass = 'pvz-cursor-ns-resize';
-	} else if (theState == 8) {
-		nextClass = 'pvz-cursor-nwse-resize';
-	} else if (theState == 9) {
-		nextClass = 'pvz-cursor-ew-resize';
-	} else if (theState == 10) {
-		nextClass = 'pvz-cursor-wait';
-	} else if (theState == 11) {
-		nextClass = 'pvz-cursor-hidden';
-	}
-
-	var hasCursorClass = cursorClasses.some(function(theClassName) {
-		return canvas.classList.contains(theClassName);
-	});
-	var domMatches = nextClass == '' ? !hasCursorClass : canvas.classList.contains(nextClass);
-	if (Module.pvzCanvasCursorClass === nextClass && domMatches) {
-		return;
-	}
-
-	canvas.classList.remove.apply(canvas.classList, cursorClasses);
-	if (nextClass != '') {
-		canvas.classList.add(nextClass);
-	}
-	Module.pvzCanvasCursorClass = nextClass;
 });
 
 EM_JS(void, PvZSetCanvasBrowserCursorPixels, (int theKind, const uint32_t* thePixels, int theWidth, int theHeight, int theHotX, int theHotY), {
 	var canvas = Module.canvas || document.getElementById('canvas');
 	if (!canvas) return;
-	if (canvas.style.cursor) {
-		canvas.style.removeProperty('cursor');
-	}
-
-	var cursorClasses = Module.pvzCanvasCursorClasses;
-	if (!cursorClasses) return;
+	if (!Module.pvzSetCanvasCursorRule || !Module.pvzSetCanvasCursorState) return;
 
 	var scratch = Module.pvzCursorCanvas;
 	if (!scratch) {
@@ -155,31 +130,8 @@ EM_JS(void, PvZSetCanvasBrowserCursorPixels, (int theKind, const uint32_t* thePi
 
 	ctx.putImageData(imageData, 0, 0);
 	var cursorStyle = 'url("' + scratch.toDataURL('image/png') + '") ' + theHotX + ' ' + theHotY + ', auto';
-	if (theKind == 1) {
-		if (Module.pvzCursorHandStyle !== cursorStyle) {
-			Module.pvzCursorHandStyle = cursorStyle;
-			if (Module.pvzCursorHandRule) {
-				Module.pvzCursorHandRule.style.setProperty('cursor', cursorStyle, 'important');
-			}
-		}
-	} else {
-		if (Module.pvzCursorPointerStyle !== cursorStyle) {
-			Module.pvzCursorPointerStyle = cursorStyle;
-			if (Module.pvzCursorPointerRule) {
-				Module.pvzCursorPointerRule.style.setProperty('cursor', cursorStyle, 'important');
-			}
-		}
-	}
-
-	var nextClass = theKind == 1 ? 'pvz-cursor-hand' : 'pvz-cursor-pointer';
-	var domMatches = canvas.classList.contains(nextClass);
-	if (Module.pvzCanvasCursorClass === nextClass && domMatches) {
-		return;
-	}
-
-	canvas.classList.remove.apply(canvas.classList, cursorClasses);
-	canvas.classList.add(nextClass);
-	Module.pvzCanvasCursorClass = nextClass;
+	Module.pvzSetCanvasCursorRule(theKind, cursorStyle);
+	Module.pvzSetCanvasCursorState(theKind);
 });
 #endif
 
@@ -411,7 +363,7 @@ static inline SDL_Cursor* CreatePvZColorCursor(PvZCursorKind theKind, int theSca
 #ifdef __EMSCRIPTEN__
 static inline bool ApplyPvZBrowserCursor(PvZCursorKind theKind, int theScalePercent)
 {
-	PvZEnsureCanvasBrowserCursorStyle();
+	PvZEnsureCanvasBrowserCursorSupport();
 
 	PvZCursorBitmap aBitmap;
 	if (!PvZBuildCursorBitmap(theKind, theScalePercent, aBitmap))
@@ -423,19 +375,19 @@ static inline bool ApplyPvZBrowserCursor(PvZCursorKind theKind, int theScalePerc
 
 static inline void ApplyPvZBrowserCursorClass(PvZCursorKind theKind)
 {
-	PvZEnsureCanvasBrowserCursorStyle();
+	PvZEnsureCanvasBrowserCursorSupport();
 	PvZSetCanvasBrowserCursorState(static_cast<int>(theKind));
 }
 
 static inline void HidePvZBrowserCursor()
 {
-	PvZEnsureCanvasBrowserCursorStyle();
-	PvZSetCanvasBrowserCursorState(11);
+	PvZEnsureCanvasBrowserCursorSupport();
+	PvZSetCanvasBrowserCursorState(CURSOR_NONE);
 }
 
 static inline void ApplyPvZBrowserSystemCursor(int theCursorNum)
 {
-	PvZEnsureCanvasBrowserCursorStyle();
+	PvZEnsureCanvasBrowserCursorSupport();
 	PvZSetCanvasBrowserCursorState(theCursorNum);
 }
 #endif
