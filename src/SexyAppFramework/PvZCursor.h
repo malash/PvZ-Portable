@@ -33,19 +33,18 @@ EM_JS(void, PvZSetBrowserCursorKind, (int theCursorKind), {
 	const loadImage = async (source, cache) => {
 		if (cache.loaded) return true;
 
-		if (!cache.decodePromise) {
+		if (!cache.image) {
 			const image = new Image(source.width, source.height);
 			image.src = source.dataUrl;
 			cache.image = image;
-			cache.decodePromise = image.decode()
-				.then(() => {
-					cache.loaded = true;
-					return true;
-				})
-				.catch(() => false);
 		}
 
-		return cache.decodePromise;
+		try {
+			await cache.image.decode();
+			return true;
+		} catch (error) {
+			return false;
+		}
 	};
 
 	const getScalePercent = (canvas) => {
@@ -73,9 +72,9 @@ EM_JS(void, PvZSetBrowserCursorKind, (int theCursorKind), {
 		}
 
 		if (!cache.loaded) {
-			canvas.style.cursor = 'url("' + source.dataUrl + '") ' + source.hotX + ' ' + source.hotY + ', auto';
 			const loaded = await loadImage(source, cache);
 			if (!loaded || Module.pvzCanvasCursorKind !== kind) return;
+			cache.loaded = true;
 		}
 
 		const width = Math.max(1, Math.round(source.width * scalePercent / 100));
