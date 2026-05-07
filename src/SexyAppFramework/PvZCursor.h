@@ -119,8 +119,8 @@ namespace Sexy
 
 enum class PvZCursorKind
 {
-	Pointer,
-	Hand
+	Pointer = 0,
+	Hand = 1
 };
 
 struct PvZCursorBitmap
@@ -132,30 +132,47 @@ struct PvZCursorBitmap
 	int mHotY = 0;
 };
 
+struct PvZCursorResource
+{
+	const unsigned char* mData = nullptr;
+	size_t mSize = 0;
+};
+
 static inline bool PvZCursorKindFromCursorNum(int theCursorNum, PvZCursorKind& theKind)
 {
-	if (theCursorNum == CURSOR_POINTER)
+	switch (theCursorNum)
 	{
+	case CURSOR_POINTER:
 		theKind = PvZCursorKind::Pointer;
 		return true;
-	}
-	if (theCursorNum == CURSOR_HAND)
-	{
+	case CURSOR_HAND:
 		theKind = PvZCursorKind::Hand;
 		return true;
+	default:
+		return false;
 	}
-
-	return false;
 }
 
 static inline int& PvZCursorScaleCache(PvZCursorKind theKind)
 {
-	static int aPointerScalePercent = 0;
-	static int aHandScalePercent = 0;
-	return theKind == PvZCursorKind::Pointer ? aPointerScalePercent : aHandScalePercent;
+	static int aScalePercent[2] = {};
+	return aScalePercent[static_cast<int>(theKind)];
 }
 
 static inline int GetPvZCursorScalePercent(SexyAppBase* theApp);
+
+static inline PvZCursorResource GetPvZCursorResource(PvZCursorKind theKind)
+{
+	switch (theKind)
+	{
+	case PvZCursorKind::Pointer:
+		return { kPvZPointerCursorCur, kPvZPointerCursorCurLen };
+	case PvZCursorKind::Hand:
+		return { kPvZHandCursorCur, kPvZHandCursorCurLen };
+	}
+
+	return {};
+}
 
 static inline uint16_t PvZReadLE16(const unsigned char* thePtr)
 {
@@ -335,9 +352,8 @@ static inline bool PvZScaleCursorBitmap(const PvZCursorBitmap& theSource, int th
 static inline bool PvZBuildCursorBitmap(PvZCursorKind theKind, int theScalePercent, PvZCursorBitmap& theBitmap)
 {
 	PvZCursorBitmap aSource;
-	const unsigned char* aData = theKind == PvZCursorKind::Pointer ? kPvZPointerCursorCur : kPvZHandCursorCur;
-	const size_t aDataSize = theKind == PvZCursorKind::Pointer ? kPvZPointerCursorCurLen : kPvZHandCursorCurLen;
-	if (!PvZDecodeCursor(aData, aDataSize, 32, aSource))
+	const PvZCursorResource aResource = GetPvZCursorResource(theKind);
+	if (aResource.mData == nullptr || !PvZDecodeCursor(aResource.mData, aResource.mSize, 32, aSource))
 		return false;
 
 	return PvZScaleCursorBitmap(aSource, theScalePercent, theBitmap);
@@ -365,18 +381,18 @@ static inline SDL_Cursor* CreatePvZColorCursor(PvZCursorKind theKind, int theSca
 }
 
 #ifdef __EMSCRIPTEN__
-static inline void ApplyPvZBrowserCursorKind(PvZCursorKind theKind)
+static inline void ApplyCachedPvZBrowserCursor(PvZCursorKind theKind)
 {
 	PvZEnsureCanvasBrowserCursor();
 	PvZSetCanvasBrowserCursorKind(static_cast<int>(theKind));
 }
 
-static inline bool ApplyPvZBrowserCursor(PvZCursorKind theKind, int theScalePercent)
+static inline bool ApplyPvZBrowserCursorKind(PvZCursorKind theKind, int theScalePercent)
 {
 	int& aCachedScalePercent = PvZCursorScaleCache(theKind);
 	if (aCachedScalePercent == theScalePercent)
 	{
-		ApplyPvZBrowserCursorKind(theKind);
+		ApplyCachedPvZBrowserCursor(theKind);
 		return true;
 	}
 
@@ -393,44 +409,13 @@ static inline bool ApplyPvZBrowserCursor(PvZCursorKind theKind, int theScalePerc
 static inline bool ApplyPvZBrowserCursor(SexyAppBase* theApp, int theCursorNum)
 {
 	PvZCursorKind aKind;
-	return PvZCursorKindFromCursorNum(theCursorNum, aKind) && ApplyPvZBrowserCursor(aKind, GetPvZCursorScalePercent(theApp));
+	return PvZCursorKindFromCursorNum(theCursorNum, aKind) && ApplyPvZBrowserCursorKind(aKind, GetPvZCursorScalePercent(theApp));
 }
 
 static inline void HidePvZBrowserCursor()
 {
 	PvZEnsureCanvasBrowserCursor();
 	PvZSetCanvasBrowserCursorStyle("none");
-}
-
-static inline const char* GetPvZBrowserSystemCursorStyle(int theCursorNum)
-{
-	switch (theCursorNum)
-	{
-	case CURSOR_TEXT:
-		return "text";
-	case CURSOR_CIRCLE_SLASH:
-		return "not-allowed";
-	case CURSOR_SIZEALL:
-		return "move";
-	case CURSOR_SIZENESW:
-		return "nesw-resize";
-	case CURSOR_SIZENS:
-		return "ns-resize";
-	case CURSOR_SIZENWSE:
-		return "nwse-resize";
-	case CURSOR_SIZEWE:
-		return "ew-resize";
-	case CURSOR_WAIT:
-		return "wait";
-	default:
-		return "default";
-	}
-}
-
-static inline void ApplyPvZBrowserSystemCursor(int theCursorNum)
-{
-	PvZEnsureCanvasBrowserCursor();
-	PvZSetCanvasBrowserCursorStyle(GetPvZBrowserSystemCursorStyle(theCursorNum));
 }
 #endif
 

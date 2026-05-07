@@ -2403,9 +2403,6 @@ void SexyAppBase::EnforceCursor()
 #ifdef __EMSCRIPTEN__
 	if (ApplyPvZBrowserCursor(this, aCursorNum))
 		return;
-
-	ApplyPvZBrowserSystemCursor(aCursorNum);
-	return;
 #endif
 
 	SDL_Cursor* aCursor = nullptr;
