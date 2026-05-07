@@ -2401,7 +2401,7 @@ void SexyAppBase::EnforceCursor()
 	}
 
 #ifdef __EMSCRIPTEN__
-	if (ApplyPvZBrowserCursor(this, aCursorNum))
+	if (ApplyPvZBrowserCursor(aCursorNum))
 		return;
 #endif
 

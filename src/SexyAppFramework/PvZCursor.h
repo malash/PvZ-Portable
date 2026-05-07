@@ -16,21 +16,21 @@
 #include "CursorHand.cur.inc"
 
 #ifdef __EMSCRIPTEN__
-EM_JS(double, PvZGetBrowserCanvasScale, (), {
-	var canvas = Module.canvas || document.getElementById('canvas');
-	if (!canvas) return 1;
-
-	var rect = canvas.getBoundingClientRect();
-	var scaleX = rect.width > 0 && canvas.width > 0 ? rect.width / canvas.width : 1;
-	var scaleY = rect.height > 0 && canvas.height > 0 ? rect.height / canvas.height : 1;
-	return Math.max(1, Math.min(scaleX, scaleY));
-});
-
 EM_JS(void, PvZEnsureCanvasBrowserCursor, (), {
 	if (Module.pvzCanvasCursorReady) return;
 
 	var getCanvas = function() {
 		return Module.canvas || document.getElementById('canvas');
+	};
+
+	Module.pvzGetCanvasCursorScalePercent = function() {
+		var canvas = getCanvas();
+		if (!canvas) return 100;
+
+		var rect = canvas.getBoundingClientRect();
+		var scaleX = rect.width > 0 && canvas.width > 0 ? rect.width / canvas.width : 1;
+		var scaleY = rect.height > 0 && canvas.height > 0 ? rect.height / canvas.height : 1;
+		return Math.max(100, Math.round(Math.min(scaleX, scaleY) * 100));
 	};
 
 	Module.pvzRestoreCanvasCursor = function() {
@@ -59,6 +59,41 @@ EM_JS(void, PvZEnsureCanvasBrowserCursor, (), {
 		Module.pvzScheduleCanvasCursorRestore();
 	};
 
+	Module.pvzApplyCanvasCursorKind = function(cursorKind) {
+		var sources = Module.pvzCursorSources;
+		var source = sources && sources[cursorKind];
+		if (!source) return false;
+
+		var scalePercent = Module.pvzGetCanvasCursorScalePercent();
+		if (source.cursorStyle && source.scalePercent === scalePercent) {
+			Module.pvzSetCanvasCursorStyle(source.cursorStyle);
+			return true;
+		}
+
+		var width = Math.max(1, Math.round(source.width * scalePercent / 100));
+		var height = Math.max(1, Math.round(source.height * scalePercent / 100));
+		var hotX = Math.max(0, Math.min(width - 1, Math.round(source.hotX * scalePercent / 100)));
+		var hotY = Math.max(0, Math.min(height - 1, Math.round(source.hotY * scalePercent / 100)));
+
+		var scaled = Module.pvzCursorScaledCanvas;
+		if (!scaled) {
+			scaled = document.createElement('canvas');
+			Module.pvzCursorScaledCanvas = scaled;
+		}
+
+		scaled.width = width;
+		scaled.height = height;
+		var ctx = scaled.getContext('2d');
+		ctx.imageSmoothingEnabled = false;
+		ctx.clearRect(0, 0, width, height);
+		ctx.drawImage(source.canvas, 0, 0, width, height);
+
+		source.scalePercent = scalePercent;
+		source.cursorStyle = 'url("' + scaled.toDataURL('image/png') + '") ' + hotX + ' ' + hotY + ', auto';
+		Module.pvzSetCanvasCursorStyle(source.cursorStyle);
+		return true;
+	};
+
 	var canvas = getCanvas();
 	if (!canvas) return;
 
@@ -76,23 +111,16 @@ EM_JS(void, PvZSetCanvasBrowserCursorStyle, (const char* theCursorStyle), {
 	Module.pvzSetCanvasCursorStyle(UTF8ToString(theCursorStyle));
 });
 
-EM_JS(void, PvZSetCanvasBrowserCursorKind, (int theKind), {
-	var cursorStyles = Module.pvzCursorStyles;
-	if (!cursorStyles || !cursorStyles[theKind]) return;
-
-	Module.pvzSetCanvasCursorStyle(cursorStyles[theKind]);
+EM_JS(int, PvZSetCanvasBrowserCursorKind, (int theKind), {
+	return Module.pvzApplyCanvasCursorKind(theKind) ? 1 : 0;
 });
 
 EM_JS(void, PvZSetCanvasBrowserCursorPixels, (int theKind, const uint32_t* thePixels, int theWidth, int theHeight, int theHotX, int theHotY), {
-	var scratch = Module.pvzCursorCanvas;
-	if (!scratch) {
-		scratch = document.createElement('canvas');
-		Module.pvzCursorCanvas = scratch;
-	}
+	var sourceCanvas = document.createElement('canvas');
+	sourceCanvas.width = theWidth;
+	sourceCanvas.height = theHeight;
 
-	scratch.width = theWidth;
-	scratch.height = theHeight;
-	var ctx = scratch.getContext('2d');
+	var ctx = sourceCanvas.getContext('2d');
 	var imageData = ctx.createImageData(theWidth, theHeight);
 	var src = thePixels >>> 0;
 	for (var i = 0, j = 0; i < theWidth * theHeight; i++, j += 4) {
@@ -104,13 +132,20 @@ EM_JS(void, PvZSetCanvasBrowserCursorPixels, (int theKind, const uint32_t* thePi
 	}
 
 	ctx.putImageData(imageData, 0, 0);
-	var cursorStyle = 'url("' + scratch.toDataURL('image/png') + '") ' + theHotX + ' ' + theHotY + ', auto';
-	if (!Module.pvzCursorStyles) {
-		Module.pvzCursorStyles = [];
+	if (!Module.pvzCursorSources) {
+		Module.pvzCursorSources = [];
 	}
 
-	Module.pvzCursorStyles[theKind] = cursorStyle;
-	Module.pvzSetCanvasCursorStyle(cursorStyle);
+	Module.pvzCursorSources[theKind] = {
+		canvas: sourceCanvas,
+		width: theWidth,
+		height: theHeight,
+		hotX: theHotX,
+		hotY: theHotY,
+		scalePercent: 0,
+		cursorStyle: null
+	};
+	Module.pvzApplyCanvasCursorKind(theKind);
 });
 #endif
 
@@ -158,8 +193,6 @@ static inline int& PvZCursorScaleCache(PvZCursorKind theKind)
 	static int aScalePercent[2] = {};
 	return aScalePercent[static_cast<int>(theKind)];
 }
-
-static inline int GetPvZCursorScalePercent(SexyAppBase* theApp);
 
 static inline PvZCursorResource GetPvZCursorResource(PvZCursorKind theKind)
 {
@@ -308,6 +341,48 @@ static inline bool PvZDecodeCursor(const unsigned char* theData, size_t theDataS
 		theBitmap);
 }
 
+static inline bool PvZLoadCursorBitmap(PvZCursorKind theKind, PvZCursorBitmap& theBitmap)
+{
+	const PvZCursorResource aResource = GetPvZCursorResource(theKind);
+	if (aResource.mData == nullptr)
+		return false;
+
+	return PvZDecodeCursor(aResource.mData, aResource.mSize, theBitmap);
+}
+
+#ifdef __EMSCRIPTEN__
+static inline bool ApplyPvZBrowserCursorKind(PvZCursorKind theKind)
+{
+	PvZEnsureCanvasBrowserCursor();
+	if (PvZSetCanvasBrowserCursorKind(static_cast<int>(theKind)) != 0)
+		return true;
+
+	PvZCursorBitmap aBitmap;
+	if (!PvZLoadCursorBitmap(theKind, aBitmap))
+		return false;
+
+	PvZSetCanvasBrowserCursorPixels(static_cast<int>(theKind), aBitmap.mPixels.data(), aBitmap.mWidth, aBitmap.mHeight, aBitmap.mHotX, aBitmap.mHotY);
+	return true;
+}
+
+static inline bool ApplyPvZBrowserCursor(int theCursorNum)
+{
+	PvZCursorKind aKind;
+	return PvZCursorKindFromCursorNum(theCursorNum, aKind) && ApplyPvZBrowserCursorKind(aKind);
+}
+
+static inline void HidePvZBrowserCursor()
+{
+	PvZEnsureCanvasBrowserCursor();
+	PvZSetCanvasBrowserCursorStyle("none");
+}
+
+static inline SDL_Cursor* GetPvZColorCursor(SexyAppBase*, int, SDL_Cursor*&)
+{
+	return nullptr;
+}
+
+#else
 static inline bool PvZScaleCursorBitmap(const PvZCursorBitmap& theSource, int theScalePercent, PvZCursorBitmap& theDest)
 {
 	if (theSource.mPixels.empty() || theSource.mWidth <= 0 || theSource.mHeight <= 0)
@@ -333,11 +408,10 @@ static inline bool PvZScaleCursorBitmap(const PvZCursorBitmap& theSource, int th
 	return true;
 }
 
-static inline bool PvZBuildCursorBitmap(PvZCursorKind theKind, int theScalePercent, PvZCursorBitmap& theBitmap)
+static inline bool PvZBuildScaledCursorBitmap(PvZCursorKind theKind, int theScalePercent, PvZCursorBitmap& theBitmap)
 {
 	PvZCursorBitmap aSource;
-	const PvZCursorResource aResource = GetPvZCursorResource(theKind);
-	if (aResource.mData == nullptr || !PvZDecodeCursor(aResource.mData, aResource.mSize, aSource))
+	if (!PvZLoadCursorBitmap(theKind, aSource))
 		return false;
 
 	return PvZScaleCursorBitmap(aSource, theScalePercent, theBitmap);
@@ -346,7 +420,7 @@ static inline bool PvZBuildCursorBitmap(PvZCursorKind theKind, int theScalePerce
 static inline SDL_Cursor* CreatePvZColorCursor(PvZCursorKind theKind, int theScalePercent)
 {
 	PvZCursorBitmap aBitmap;
-	if (!PvZBuildCursorBitmap(theKind, theScalePercent, aBitmap))
+	if (!PvZBuildScaledCursorBitmap(theKind, theScalePercent, aBitmap))
 		return nullptr;
 
 	SDL_Surface* aSurface = SDL_CreateRGBSurfaceWithFormatFrom(
@@ -364,51 +438,8 @@ static inline SDL_Cursor* CreatePvZColorCursor(PvZCursorKind theKind, int theSca
 	return aCursor;
 }
 
-#ifdef __EMSCRIPTEN__
-static inline void ApplyCachedPvZBrowserCursor(PvZCursorKind theKind)
-{
-	PvZEnsureCanvasBrowserCursor();
-	PvZSetCanvasBrowserCursorKind(static_cast<int>(theKind));
-}
-
-static inline bool ApplyPvZBrowserCursorKind(PvZCursorKind theKind, int theScalePercent)
-{
-	int& aCachedScalePercent = PvZCursorScaleCache(theKind);
-	if (aCachedScalePercent == theScalePercent)
-	{
-		ApplyCachedPvZBrowserCursor(theKind);
-		return true;
-	}
-
-	PvZCursorBitmap aBitmap;
-	if (!PvZBuildCursorBitmap(theKind, theScalePercent, aBitmap))
-		return false;
-
-	PvZEnsureCanvasBrowserCursor();
-	PvZSetCanvasBrowserCursorPixels(static_cast<int>(theKind), aBitmap.mPixels.data(), aBitmap.mWidth, aBitmap.mHeight, aBitmap.mHotX, aBitmap.mHotY);
-	aCachedScalePercent = theScalePercent;
-	return true;
-}
-
-static inline bool ApplyPvZBrowserCursor(SexyAppBase* theApp, int theCursorNum)
-{
-	PvZCursorKind aKind;
-	return PvZCursorKindFromCursorNum(theCursorNum, aKind) && ApplyPvZBrowserCursorKind(aKind, GetPvZCursorScalePercent(theApp));
-}
-
-static inline void HidePvZBrowserCursor()
-{
-	PvZEnsureCanvasBrowserCursor();
-	PvZSetCanvasBrowserCursorStyle("none");
-}
-#endif
-
 static inline int GetPvZCursorScalePercent(SexyAppBase* theApp)
 {
-#ifdef __EMSCRIPTEN__
-	const double aScale = PvZGetBrowserCanvasScale();
-	return std::max(100, static_cast<int>(aScale * 100.0 + 0.5));
-#else
 	int aDrawableWidth = theApp->mWidth;
 	int aDrawableHeight = theApp->mHeight;
 	if (theApp->mWindow != nullptr)
@@ -425,7 +456,6 @@ static inline int GetPvZCursorScalePercent(SexyAppBase* theApp)
 	const double aScaleY = static_cast<double>(aDrawableHeight) / theApp->mHeight;
 	const double aScale = std::max(1.0, std::min(aScaleX, aScaleY));
 	return std::max(100, static_cast<int>(aScale * 100.0 + 0.5));
-#endif
 }
 
 static inline SDL_Cursor* GetPvZColorCursor(SexyAppBase* theApp, int theCursorNum, SDL_Cursor*& theCachedCursor)
@@ -451,5 +481,6 @@ static inline SDL_Cursor* GetPvZColorCursor(SexyAppBase* theApp, int theCursorNu
 
 	return theCachedCursor;
 }
+#endif
 
 } // namespace Sexy
