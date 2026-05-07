@@ -2394,10 +2394,12 @@ void SexyAppBase::EnforceCursor()
 	if (aCursorNum == CURSOR_NONE)
 	{
 #ifdef __EMSCRIPTEN__
-		PvZSetCanvasBrowserCursorHidden();
-#endif
+		HidePvZBrowserCursor();
+		return;
+#else
 		SDL_ShowCursor(SDL_DISABLE);
 		return;
+#endif
 	}
 
 #ifdef __EMSCRIPTEN__
@@ -2417,7 +2419,6 @@ void SexyAppBase::EnforceCursor()
 			ApplyPvZBrowserCursorClass(PvZCursorKind::Pointer);
 		}
 
-		SDL_ShowCursor(SDL_ENABLE);
 		return;
 	}
 
@@ -2437,9 +2438,10 @@ void SexyAppBase::EnforceCursor()
 			ApplyPvZBrowserCursorClass(PvZCursorKind::Hand);
 		}
 
-		SDL_ShowCursor(SDL_ENABLE);
 		return;
 	}
+
+	ClearPvZBrowserCursorClass();
 #endif
 
 	SDL_Cursor* aCursor = nullptr;

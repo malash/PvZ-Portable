@@ -26,20 +26,33 @@ EM_JS(double, PvZGetBrowserCanvasScale, (), {
 	return Math.max(1, Math.min(scaleX, scaleY));
 });
 
-EM_JS(void, PvZSetCanvasBrowserCursorClass, (int theKind), {
+EM_JS(void, PvZSetCanvasBrowserCursorState, (int theState), {
 	var canvas = Module.canvas || document.getElementById('canvas');
 	if (!canvas) return;
 
-	canvas.classList.remove('pvz-cursor-pointer', 'pvz-cursor-hand', 'pvz-cursor-hidden');
-	canvas.classList.add(theKind == 1 ? 'pvz-cursor-hand' : 'pvz-cursor-pointer');
-});
+	var nextClass = '';
+	if (theState == 0) {
+		nextClass = 'pvz-cursor-pointer';
+	} else if (theState == 1) {
+		nextClass = 'pvz-cursor-hand';
+	} else if (theState == 2) {
+		nextClass = 'pvz-cursor-hidden';
+	}
 
-EM_JS(void, PvZSetCanvasBrowserCursorHidden, (), {
-	var canvas = Module.canvas || document.getElementById('canvas');
-	if (!canvas) return;
+	var hasCursorClass =
+		canvas.classList.contains('pvz-cursor-pointer') ||
+		canvas.classList.contains('pvz-cursor-hand') ||
+		canvas.classList.contains('pvz-cursor-hidden');
+	var domMatches = nextClass == '' ? !hasCursorClass : canvas.classList.contains(nextClass);
+	if (Module.pvzCanvasCursorClass === nextClass && domMatches) {
+		return;
+	}
 
 	canvas.classList.remove('pvz-cursor-pointer', 'pvz-cursor-hand', 'pvz-cursor-hidden');
-	canvas.classList.add('pvz-cursor-hidden');
+	if (nextClass != '') {
+		canvas.classList.add(nextClass);
+	}
+	Module.pvzCanvasCursorClass = nextClass;
 });
 
 EM_JS(void, PvZSetCanvasBrowserCursorPixels, (int theKind, const uint32_t* thePixels, int theWidth, int theHeight, int theHotX, int theHotY), {
@@ -90,8 +103,15 @@ EM_JS(void, PvZSetCanvasBrowserCursorPixels, (int theKind, const uint32_t* thePi
 	css += 'canvas.pvz-cursor-hidden { cursor: none !important; }';
 	style.textContent = css;
 
+	var nextClass = theKind == 1 ? 'pvz-cursor-hand' : 'pvz-cursor-pointer';
+	var domMatches = canvas.classList.contains(nextClass);
+	if (Module.pvzCanvasCursorClass === nextClass && domMatches) {
+		return;
+	}
+
 	canvas.classList.remove('pvz-cursor-pointer', 'pvz-cursor-hand', 'pvz-cursor-hidden');
-	canvas.classList.add(theKind == 1 ? 'pvz-cursor-hand' : 'pvz-cursor-pointer');
+	canvas.classList.add(nextClass);
+	Module.pvzCanvasCursorClass = nextClass;
 });
 #endif
 
@@ -333,7 +353,17 @@ static inline bool ApplyPvZBrowserCursor(PvZCursorKind theKind, int theScalePerc
 
 static inline void ApplyPvZBrowserCursorClass(PvZCursorKind theKind)
 {
-	PvZSetCanvasBrowserCursorClass(static_cast<int>(theKind));
+	PvZSetCanvasBrowserCursorState(static_cast<int>(theKind));
+}
+
+static inline void HidePvZBrowserCursor()
+{
+	PvZSetCanvasBrowserCursorState(2);
+}
+
+static inline void ClearPvZBrowserCursorClass()
+{
+	PvZSetCanvasBrowserCursorState(-1);
 }
 #endif
 
