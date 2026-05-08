@@ -77,6 +77,9 @@
 #include "sound/DummyMusicInterface.h"
 #include "misc/memmgr.h"
 #include "misc/RegEmu.h"
+#ifdef __EMSCRIPTEN__
+#include "PvZCursor.h"
+#endif
 
 using namespace Sexy;
 
@@ -2390,9 +2393,19 @@ void SexyAppBase::EnforceCursor()
 
 	if (aCursorNum == CURSOR_NONE)
 	{
+#ifdef __EMSCRIPTEN__
+		HidePvZBrowserCursor();
+		return;
+#else
 		SDL_ShowCursor(SDL_DISABLE);
 		return;
+#endif
 	}
+
+#ifdef __EMSCRIPTEN__
+	if (ApplyPvZBrowserCursor(aCursorNum))
+		return;
+#endif
 
 	SDL_Cursor* aCursor = nullptr;
 
@@ -2425,10 +2438,13 @@ void SexyAppBase::EnforceCursor()
 	if (aCursor == nullptr)
 	{
 		SDL_Cursor*& aCachedCursor = mSysCursors[aCursorNum];
-		if (aCachedCursor == nullptr)
-			aCachedCursor = SDL_CreateSystemCursor(CursorNumToSystemCursor(aCursorNum));
+		if (aCursor == nullptr)
+		{
+			if (aCachedCursor == nullptr)
+				aCachedCursor = SDL_CreateSystemCursor(CursorNumToSystemCursor(aCursorNum));
+			aCursor = aCachedCursor;
+		}
 
-		aCursor = aCachedCursor;
 		if (aCursor == nullptr)
 			aCursor = SDL_GetDefaultCursor();
 	}

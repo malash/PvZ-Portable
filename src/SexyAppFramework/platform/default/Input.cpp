@@ -410,6 +410,11 @@ bool SexyAppBase::ProcessDeferredMessages(bool singleMessage)
 						mActive = event.window.event == SDL_WINDOWEVENT_FOCUS_GAINED;
 						RehupFocus();
 						break;
+
+					case SDL_WINDOWEVENT_ENTER:
+						mMouseIn = true;
+						EnforceCursor();
+						break;
 				}
 				break;
 
